@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<input type="file" id="file-input"/>
+<pre id = "file-info">No data yet.</pre>
+
+<canvas id = "thecanvas" width = "900" height = "600" style = "border:3px solid #d0d0d0;"></canvas>
+<pre id = "info">
+Arrows move, +/- (pgup/pgdn) zoom, A acc., S stop, D dec., Z restart, X/C fps, Q/W step, shift +/- point size, 
+F fit, P pingpong, G grid, T autofit, M/N alpha, shift/arrows grid spacing, L toggle tick label
+</pre>
+
+<script>
+
+const full_W = window.innerWidth * .95;
+const full_H = window.innerHeight * .80; // leave some space vertically
+
+// TODO: option to toggle full_W, full_H; also tracking window size changes
+// TODO: option to color (or autosize) by u, or m ? or even vx, vy ?
+
+let xydata = []
+
+const filehsz = 2 * Int32Array.BYTES_PER_ELEMENT;   // 1x int64 (8 bytes)
+const framehsz = 2 * Int32Array.BYTES_PER_ELEMENT + Float64Array.BYTES_PER_ELEMENT; // 1x int64 and 1x float64 (16 bytes)
+const recsize = 6 * Float64Array.BYTES_PER_ELEMENT; // m,x,y,vx,vy,u
+const littleEndian = true;
+
+function dataShapedAndFinite(d) {
+  const nslices = d.length;
+  if (nslices == 0)
+    return false;
+  for (var i = 0; i < nslices; i++) {
+    const leni = d[i].length;
+    if (leni == 0)
+      return false;
+    const nptsi = Math.floor((leni - 1) / 2);
+    if (nptsi * 2 + 1 != leni)
+      return false;
+    if (i >= 1) {
+      if (d[i][0] <= d[i - 1][0])
+        return false;  // strictly monotonic timestamp
+    }
+    if (!d[i].every(isFinite)) 
+      return false;
+  }
+  return true;
+}
+
+// frame f, particle i: offset returned is to beginning of the record (m,x,y,vx,vy,u)
+function get_particle_offset(f, i, np) {
+  return (filehsz + f * (framehsz + np * recsize) + framehsz + i * recsize);
+}
+
+function are_m_and_u_positive(view, np, nf) {
+  for (var f = 0; f < nf; f++) {
+    for (var i = 0; i < np; i++) {
+      const ofs = get_particle_offset(f, i, np);
+      if (view.getFloat64(ofs, littleEndian) <= 0.0) return false;
+      if (view.getFloat64(ofs + Float64Array.BYTES_PER_ELEMENT * 5, littleEndian) <= 0.0) return false;
+    }
+  }
+  return true;
+}
+
+function is_time_monotonic(view, np, nf) {
+  var ofs = get_particle_offset(0, 0, np) - framehsz;
+  var fval = view.getFloat64(ofs + 8, littleEndian);
+  for (var f = 1; f < nf; f++) {
+    ofs = get_particle_offset(f, 0, np) - framehsz;
+    var newfval = view.getFloat64(ofs + 8, littleEndian);
+    if (newfval <= fval) return false;
+    fval = newfval;
+  }
+  return true;
+}
+
+function make_xy_array(view, np, nf) {
+  var ofs;
+  let txy = [];
+  for (var f = 0; f < nf; f++) {
+    ofs = get_particle_offset(f, 0, np);
+    txy.push([view.getFloat64(ofs - 8, littleEndian)]);
+    for (var i = 0; i < np; i++) {
+      ofs = get_particle_offset(f, i, np);
+      txy[f].push(Number(view.getFloat64(ofs + 8, littleEndian)));
+      txy[f].push(Number(view.getFloat64(ofs + 16, littleEndian)));
+    }
+  }
+  return txy;
+}
+
+function readBinaryFile(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    xydata = []
+    var contents = e.target.result;
+    const fileLength = contents.byteLength;
+
+    let view = new DataView(contents);
+    const nump = view.getInt32(0, littleEndian);
+    if (view.getInt32(4, littleEndian) != 0) return;
+    const numframes = (fileLength - filehsz) / (framehsz + 6 * nump * Float64Array.BYTES_PER_ELEMENT);
+
+    if ((nump * 6 * Float64Array.BYTES_PER_ELEMENT + framehsz) * numframes + filehsz != view.byteLength)
+      return;
+
+    if (!is_time_monotonic(view, nump, numframes))
+      return;
+
+    if (!are_m_and_u_positive(view, nump, numframes))
+      return;
+
+    xydata = make_xy_array(view, nump, numframes);
+
+    const element = document.getElementById('file-info')
+    element.textContent = "particles = " + nump + ", frames = " + numframes + ", filesize = " + fileLength; 
+    if (!dataShapedAndFinite(xydata)) {
+      element.textContent = "(corrupt file)";
+      xydata = []
+    }
+  };
+  const element = document.getElementById('file-info')
+  element.textContent = "(incompatible file)";
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById('file-input').addEventListener('change', readBinaryFile, false);
+
+const canvas = document.getElementById("thecanvas");
+const ctx = canvas.getContext("2d");
+
+// console.log(ctx);
+
+//canvas.width = full_W;
+//canvas.height = full_H;
+
+const W = canvas.width;
+const H = canvas.height;
+const ASP = W / H;
+
+const MAXGPP = 0.20;  // at least 5 pixels btw grid lines
+let SHOWGRID = true;
+
+const MARKSPP = 0.02; // ~ how many tick markers per pixel
+let SHOWLABEL = true;
+
+var xtick = 0.125;
+var ytick = 0.125;
+
+var xmin = -4.5;
+var xmax = 4.5;
+var ymin = xmin / ASP;
+var ymax = xmax / ASP;
+
+var m11, m21, m12, m22, tx, ty;
+
+const MINFPS = 1.0;
+const MAXFPS = 50.0;
+let FPS = 12.0;
+let FRAME = 0;
+let dFRAME = 1;
+let PINGPONG = false;
+let AUTOFIT = false;
+let PTRADIUS = 0.025;
+let PTALPHA = 0.65;
+
+function recalcTransform() {
+  m11 = W / (xmax - xmin);
+  m21 = 0.0;
+  m12 = 0.0;
+  m22 = -H / (ymax - ymin);
+  tx = -xmin * W / (xmax - xmin);
+  ty = ymax * H / (ymax - ymin);  
+}
+
+function calc_pos_w(x) {
+  return (x * m11 + tx);
+}
+
+function calc_pos_h(y) {
+  return (y * m22 + ty);
+}
+
+function drawGrid(xstr, ystr, adjust_label_pos) {
+  const axis_color = "#A0A0FF";
+  const axis_width = 2.0 / m11;
+  const grid_color = "#C0C0FF";
+  const grid_width = 1.0 / m11;
+  const tickmark = 6.0 / m11;
+
+  ctx.font = "12px Arial";
+  ctx.fillStyle = "blue"; // for the text
+  ctx.globalAlpha = 1.0;
+  ctx.setTransform(m11, m12, m21, m22, tx, ty);
+  ctx.clearRect(xmin, ymin, xmax - xmin, ymax - ymin);
+
+  ctx.lineWidth = axis_width;
+  ctx.strokeStyle = axis_color;
+
+  ctx.beginPath();
+  ctx.moveTo(xmin, 0.0);
+  ctx.lineTo(xmax, 0.0);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(0.0, ymin);
+  ctx.lineTo(0.0, ymax);
+  ctx.stroke();
+
+  const xgmin = Math.ceil(xmin / xtick);
+  const xgmax = Math.floor(xmax / xtick);
+  const xgpp = (xgmax - xgmin + 1) / W;
+  const xq = Math.ceil(xgpp / MARKSPP);
+  if (SHOWGRID) {
+    for (var g = xgmin; g <= xgmax; g++) {
+      if (g == 0) continue;
+      if (xgpp <= MAXGPP) {
+        ctx.lineWidth = grid_width;
+        ctx.strokeStyle = grid_color;
+        ctx.beginPath();
+        ctx.moveTo(g * xtick, ymin);
+        ctx.lineTo(g * xtick, ymax);
+        ctx.stroke();
+      }
+      if (g % xq == 0) {
+        ctx.lineWidth = axis_width;
+        ctx.strokeStyle = axis_color;
+        ctx.beginPath();
+        ctx.moveTo(g * xtick, -tickmark);
+        ctx.lineTo(g * xtick, tickmark);
+        ctx.stroke();
+        if (SHOWLABEL) {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.fillText((g * xtick).toFixed(3), calc_pos_w(g * xtick), calc_pos_h(-2*tickmark));
+          ctx.setTransform(m11, m12, m21, m22, tx, ty);
+        }
+      }
+    }
+  }
+
+  const ygmin = Math.ceil(ymin / ytick);
+  const ygmax = Math.floor(ymax / ytick);
+  const ygpp = (ygmax - ygmin + 1) / H;
+  const yq = Math.ceil(ygpp / MARKSPP);
+  if (SHOWGRID) {
+    for (var g = ygmin; g <= ygmax; g++) {
+      if (g == 0) continue;
+      if (ygpp <= MAXGPP) {
+        ctx.lineWidth = grid_width;
+        ctx.strokeStyle = grid_color;
+        ctx.beginPath();
+        ctx.moveTo(xmin, g * ytick);
+        ctx.lineTo(xmax, g * ytick);
+        ctx.stroke();
+      }
+      if (g % yq == 0) {
+        ctx.lineWidth = axis_width;
+        ctx.strokeStyle = axis_color;
+        ctx.beginPath();
+        ctx.moveTo(-tickmark, g * ytick);
+        ctx.lineTo(tickmark, g * ytick);
+        ctx.stroke();
+        if (SHOWLABEL) {
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.fillText((g * ytick).toFixed(3), calc_pos_w(-6*tickmark), calc_pos_h(g * ytick));
+          ctx.setTransform(m11, m12, m21, m22, tx, ty);
+        }
+      }
+    }
+  }
+
+  const labelmargin = 20;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.font = "bold 22px Arial";
+  let ypos = calc_pos_h(0.0);
+  if (adjust_label_pos) {
+    if (ypos > H - labelmargin) ypos = H - labelmargin;
+    if (ypos < labelmargin) ypos = labelmargin;
+  }
+  ctx.fillText(xstr, calc_pos_w(xmax - 0.05 * (xmax - xmin)), ypos);
+  let xpos = calc_pos_w(0.0);
+  if (adjust_label_pos) {
+    if (xpos > W - labelmargin) xpos = W - labelmargin;
+    if (xpos < labelmargin) xpos = labelmargin;
+  }
+  ctx.fillText(ystr, xpos, calc_pos_h(ymax - 0.05 * (ymax - ymin)));
+}
+
+function autoRangeFrame(f) {
+  if (f < 0 || f >= xydata.length) return false;
+  const nptsf = (xydata[f].length - 1) / 2;
+  if (nptsf < 2) return false;
+  var xmin_ = xydata[f][1];
+  var ymin_ = xydata[f][2];
+  var xmax_ = xmin_;
+  var ymax_ = ymin_;
+  var xi_, yi_;
+  for (var i = 1; i < nptsf; i++) {
+    xi_ = xydata[f][1 + 2 * i];
+    if (xi_ < xmin_) xmin_ = xi_;
+    if (xi_ > xmax_) xmax_ = xi_;
+    yi_ = xydata[f][1 + 2 * i + 1];
+    if (yi_ < ymin_) ymin_ = yi_;
+    if (yi_ > ymax_) ymax_ = yi_;
+  }
+  const xc_ = (xmin_ + xmax_) / 2.0;
+  const yc_ = (ymin_ + ymax_) / 2.0;
+  const dx_ = (xmax_ - xmin_);
+  const dy_ = (ymax_ - ymin_);
+  const current_dx = (xmax - xmin);
+  const current_dy = (ymax - ymin);
+  const scale_x = dx_ / current_dx;
+  const scale_y = dy_ / current_dy;
+  const scale_asp = 1.025 * (scale_x >= scale_y ? scale_x : scale_y);
+  xmin = xc_ - scale_asp * current_dx / 2.0;
+  xmax = xc_ + scale_asp * current_dx / 2.0;
+  ymin = yc_ - scale_asp * current_dy / 2.0;
+  ymax = yc_ + scale_asp * current_dy / 2.0;
+  return true;
+}
+
+function drawPoints() {
+  ctx.globalAlpha = PTALPHA;
+  ctx.setTransform(m11, m12, m21, m22, tx, ty);
+  ctx.fillStyle = "black";
+  const npts = (xydata[FRAME].length - 1) / 2;
+  for (var i = 0; i < npts; i++) {
+    ctx.beginPath();
+    ctx.arc(xydata[FRAME][1 + i * 2], xydata[FRAME][1 + i * 2 + 1], PTRADIUS, 0, Math.PI * 2, false);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1.0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "blue";
+  ctx.fillText("t=" + (1000.0 * xydata[FRAME][0]).toFixed(3) 
+                    + " msec (frame=" + FRAME.toString() 
+                    + " df=" + dFRAME.toString() + ")", 5, 20);
+  ctx.font = "15px Arial";
+  let fps_text = "fps:" + FPS.toFixed(1);
+  if (PINGPONG) fps_text += " pingpong";
+  if (AUTOFIT) fps_text += " autofit";
+  ctx.fillText(fps_text, 5, H - 5);
+}
+
+function refresh() {
+  const NFRAMES = xydata.length;
+  if (PINGPONG) {
+    if (FRAME >= NFRAMES) { FRAME = NFRAMES - 1; dFRAME = -dFRAME; }
+    if (FRAME < 0) { FRAME = 0; dFRAME = -dFRAME; }
+  } else {
+    if (FRAME >= NFRAMES) FRAME = 0;
+    if (FRAME < 0) FRAME = NFRAMES - 1;
+  }
+  if (AUTOFIT) autoRangeFrame(FRAME);
+  recalcTransform();
+  drawGrid("X", "Y", false);
+  if (NFRAMES > 0) drawPoints();
+  FRAME += dFRAME;
+}
+
+let refresher_id = setInterval(refresh, 1000 / FPS);
+
+// should I return false when handled? else true?
+document.addEventListener('keydown', event => {
+  var key_ = event.key;
+  var code_ = event.keyCode;
+  if (key_ == 'z' || key_ == 'Z') {
+    FRAME = 0; // restart frames from zero
+    return;
+  }
+  if (key_ == 'a' || key_ == 'A') {
+    dFRAME += 1; // accelerate playback
+    return;
+  }
+  if (key_ == 'd' || key_ == 'D') {
+    dFRAME -= 1; // decelerate playback
+    return;
+  }
+  if (key_ == 's' || key_ == 'S') {
+    dFRAME = 0; // stop / pause playback
+    return;
+  }
+  if (key_ == 'q' || key_ == 'Q') {
+    dFRAME = 0;
+    FRAME += 1;
+    return;
+  }
+  if (key_ == 'w' || key_ == 'W') {
+    dFRAME = 0;
+    FRAME -= 1;
+    return;
+  }
+  if (key_ == 'x' || key_ == 'X') {
+    clearInterval(refresher_id);
+    if (FPS < MAXFPS) FPS += 1;
+    refresher_id = setInterval(refresh, 1000 / FPS);
+    return;
+  }
+  if (key_ == 'c' || key_ == 'C') {
+    clearInterval(refresher_id);
+    if (FPS > MINFPS) FPS -= 1;
+    refresher_id = setInterval(refresh, 1000 / FPS);
+    return;
+  }
+  const rel_move = 0.025;
+  if ((key_ == '4' || code_ == 37) && !event.shiftKey) {
+    const total_width = (xmax - xmin);
+    xmin -= total_width * rel_move;
+    xmax -= total_width * rel_move;
+    return;
+  }
+  if ((key_ == '6' || code_ == 39) && !event.shiftKey) {
+    const total_width = (xmax - xmin);
+    xmin += total_width * rel_move;
+    xmax += total_width * rel_move;
+    return;
+  }
+  if ((key_ == '8' || code_ == 38) && !event.shiftKey) {
+    const total_height = (ymax - ymin);
+    ymin += total_height * rel_move;
+    ymax += total_height * rel_move;
+    return;
+  }
+  if ((key_ == '2' || code_ == 40) && !event.shiftKey) {
+    const total_height = (ymax - ymin);
+    ymin -= total_height * rel_move;
+    ymax -= total_height * rel_move;
+    return;
+  }
+  if (key_ == '5') {  // Recenter origin
+    const xh = (xmax - xmin) / 2;
+    xmin = 0 - xh;
+    xmax = 0 + xh;
+    const yh = (ymax - ymin) / 2; 
+    ymin = 0 - yh;
+    ymax = 0 + yh;
+    return;
+  }
+  if (key_ == 'm' || key_ == 'M') {
+    PTALPHA *= 1.10;
+    PTALPHA = (PTALPHA > 1.0 ? 1.0 : PTALPHA);
+    return;
+  }
+  if (key_ == 'n' || key_ == 'N') {
+    PTALPHA /= 1.10;
+    PTALPHA = (PTALPHA < 0.10 ? 0.10 : PTALPHA);
+    return;
+  } 
+  const zoom_scale_pm = 0.95; // zoom with +/-
+  const zoom_scale_pg = 0.80; // faster zoom with pgup/pgdn
+  if ((key_ == '+' || code_ == 33) && !event.shiftKey) {
+    const zoom_scale = (code_ == 33 ? zoom_scale_pg : zoom_scale_pm);
+    const xc = (xmin + xmax) / 2;
+    const xh = (xmax - xmin) / 2;
+    xmin = xc - xh * zoom_scale;
+    xmax = xc + xh * zoom_scale;
+    const yc = (ymin + ymax) / 2;
+    const yh = (ymax - ymin) / 2; 
+    ymin = yc - yh * zoom_scale;
+    ymax = yc + yh * zoom_scale;
+    return;
+  }
+  if ((key_ == '-' || code_ == 34) && !event.shiftKey) {
+    const zoom_scale = (code_ == 34 ? zoom_scale_pg : zoom_scale_pm);
+    const xc = (xmin + xmax) / 2;
+    const xh = (xmax - xmin) / 2;
+    xmin = xc - xh / zoom_scale;
+    xmax = xc + xh / zoom_scale;
+    const yc = (ymin + ymax) / 2;
+    const yh = (ymax - ymin) / 2; 
+    ymin = yc - yh / zoom_scale;
+    ymax = yc + yh / zoom_scale;
+    return;
+  }
+  if (key_ == '+' && event.shiftKey) {
+    PTRADIUS *= 1.10;
+    return;
+  }
+  if (key_ == '-' && event.shiftKey) {
+    PTRADIUS /= 1.10;
+    return;
+  }
+  if (code_ == 37 && event.shiftKey) {
+    xtick *= 2;
+    return;
+  }
+  if (code_ == 39 && event.shiftKey) {
+    xtick /= 2;
+    return;
+  }
+  if (code_ == 38 && event.shiftKey) {
+    ytick /= 2;
+    return;
+  }
+  if (code_ == 40 && event.shiftKey) {
+    ytick *= 2;
+    return;
+  }
+  if (key_ == 'f' || key_ == 'F') {
+    autoRangeFrame(FRAME);
+    return;
+  }
+  if (key_ == 'p' || key_ == 'P') {
+    PINGPONG = !PINGPONG;
+    return;
+  }
+  if (key_ == 'g' || key_ == 'G') {
+    SHOWGRID = !SHOWGRID;
+    return;
+  }
+  if (key_ == 't' || key_ == 'T') {
+    AUTOFIT = !AUTOFIT;
+    return;
+  }
+  if (key_ == 'l' || key_ == 'L') {
+    SHOWLABEL = !SHOWLABEL;
+    return;
+  }
+});
+
+</script>
+
+</body>
+</html>
