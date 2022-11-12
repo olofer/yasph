@@ -2,8 +2,17 @@
 Plain `C` smooth particle hydrodynamics in 2D using basic `OpenMP`.
 
 ## Compile & test
-TBA.
+Standard method:
+```
+mkdir build
+cd build
+cmake ..
+make
+ctest
+```
 
 ## Demo & visualize
-TBA.
-
+If compiled and tested and all seems well, do this:
+```
+TBA
+```
