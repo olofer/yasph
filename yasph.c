@@ -7,6 +7,7 @@
 // TODO: viscosity parameters implementations (classic SPH style)
 // TODO: warning indicators for Courant condition breaches (counts/step) c^2 = dp/drho
 // TODO: cut out glue I/O code into a separate header file
+// TODO: (completely) implement sim parameters serialization (and execute it)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -965,6 +966,85 @@ bool setup_parameters(tSimParameters* P,
   }
 
   return true;
+}
+
+bool serialize_parameters(const tSimParameters* P,
+                          const char* paramsfilename)
+{
+  if (P == NULL) return false;
+
+  char buffer[1024];
+
+  /* NOTE: this is incomplete (under construction) */
+
+  tArgsio A;
+  argsio_init(&A, 1024);
+
+  sprintf(buffer, "steps=%i", P->steps);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "verbosity=%i", P->verbosity);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "dt=%.16e", P->dt);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "threads=%i", P->threads);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "trace-steps=%i", P->trace_steps);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "frame-steps=%i", P->frame_steps);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "kernel-name=%s", P->kernel_name);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "kernel-h=%.16e", P->kernel_h);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "stepper-name=%s", P->stepper_name);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "gamma=%.16e", P->gamma);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "eta=%.16e", P->eta);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "alpha=%.16e", P->alpha);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "beta=%.16e", P->beta);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "epsilon=%.16e", P->epsilon);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "epsbn=%.16e", P->epsbn);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "epsbt=%.16e", P->epsbt);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "gravity=%.16e,%.16e", P->gx, P->gy);
+  argsio_add_kv(&A, buffer);
+
+  // TODO: offload all barrier specifications
+
+  if (!argsio_all_unique(&A)) {
+    printf("warning: non-unique key(s) after serialization\n");
+  }
+
+  bool wroteit = false;
+  if (paramsfilename != NULL) {
+    const char header[] = "serialized parameters";
+    wroteit = argsio_export_file(&A, paramsfilename, header);
+  }
+
+  argsio_uninit(&A);
+  return wroteit;
 }
 
 /* ------------------------------------------------------------ */
