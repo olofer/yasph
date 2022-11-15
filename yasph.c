@@ -4,7 +4,6 @@
 
 */
 
-// TODO: viscosity parameters implementations (classic SPH style)
 // TODO: warning indicators for Courant condition breaches (counts/step) c^2 = dp/drho
 // TODO: cut out glue I/O code into a separate header file
 // TODO: (completely) implement sim parameters serialization
@@ -34,6 +33,7 @@ typedef struct tParticle {
   double u;
   double rho;   // evaluated from state (m, x, y); exact conservation of mass
   double p;     // used to compute accelerations
+  double c;     // local speed of sound
   double vxdot;
   double vydot;
   double udot;
@@ -257,12 +257,14 @@ void dot_summation_callback(int i, int j, void* aux) {
   const double dxij = xi - xj;
   const double dyij = yi - yj;
 
-  (*SimParameters.kernel_func)(dxij, dyij, SimParameters.kernel_h, &w, &wx, &wy);
+  const double h = SimParameters.kernel_h;
+
+  (*SimParameters.kernel_func)(dxij, dyij, h, &w, &wx, &wy);
 
   const double mj = p[j].m;
-  const double ci = pi / (rhoi * rhoi);
+  const double Ci = pi / (rhoi * rhoi);
 
-  const double Aij = mj * (ci + pj / (rhoj * rhoj));
+  const double Aij = mj * (Ci + pj / (rhoj * rhoj));
 
   p[i].vxdot -= Aij * wx;
   p[i].vydot -= Aij * wy;
@@ -276,7 +278,7 @@ void dot_summation_callback(int i, int j, void* aux) {
   const double dvxij = vxi - vxj;
   const double dvyij = vyi - vyj;
 
-  p[i].udot += ci * mj * (dvxij * wx + dvyij * wy);
+  p[i].udot += Ci * mj * (dvxij * wx + dvyij * wy);
 
   if (SimParameters.viscosity != viscosity_monaghan) return;
 
@@ -284,7 +286,14 @@ void dot_summation_callback(int i, int j, void* aux) {
 
   if (vdotr > 0.0) return;
 
-  /* ... TBD: modify vxdot, vydot */
+  const double mu = (h * vdotr) / (dxij * dxij + dyij * dyij + SimParameters.eta * h * h);
+  const double cbar = 0.5 * (p[i].c + p[j].c);
+  const double rhobar = 0.5 * (rhoi + rhoj);
+
+  const double Bij = mj * (-1.0 * SimParameters.alpha * cbar * mu + SimParameters.beta * mu * mu) / rhobar;
+
+  p[i].vxdot -= Bij * wx;
+  p[i].vydot -= Bij * wy;
 }
 
 /* ------------------------------------------------------------ */
@@ -311,12 +320,15 @@ void refresh_rho_vdot_and_udot(const tHashIndex2D* hti,
                                tDotState* copy)
 {
   const double gamma_minus_one = SimParameters.gamma - 1.0;
+  const double sqrt_g_gm1 = sqrt(SimParameters.gamma * gamma_minus_one);
 
   #pragma omp parallel for
   for (int i = 0; i < nump; i++) {
     sp[i].rho = 0.0;
     singleInteract_HashIndex2D(hti, i, &density_summation_callback, sp);
     sp[i].p = gamma_minus_one * sp[i].u * sp[i].rho;
+    if (SimParameters.viscosity == viscosity_off) continue;
+    sp[i].c = sqrt_g_gm1 * sqrt(sp[i].u);  // equals sqrt(gamma*P/rho) = speed of sound
   }
 
   const double gx = SimParameters.gx;
@@ -820,7 +832,7 @@ bool setup_parameters(tSimParameters* P,
   P->viscosity = viscosity_off;
   P->alpha = 1.0;
   P->beta = 2.0;
-  P->eta = 0.0; // zero implies auto-set based on kernel_h
+  P->eta = 0.01;  // alpha, beta, eta : parameters for viscosity feature
   P->epsbn = 0.100;
   P->epsbt = 0.025;
   P->trace_steps = 10;
