@@ -79,7 +79,7 @@ typedef struct tSimParameters {
   int kernel_auto_type;
   double hash_load_factor;
   kernel_2d_func_ptr kernel_func;
-  double eta;
+  double kernel_eta;
   double kernel_h;
   double kernel_width;
   double gamma;
@@ -594,7 +594,7 @@ int main(int argc, const char** argv)
       particles_are_loaded && 
       SimParameters.kernel_h == 0.0)
   {
-    autotune_kernel_bandwidth(SimParameters.eta,
+    autotune_kernel_bandwidth(SimParameters.kernel_eta,
                               SimParameters.kernel_auto_type,
                               SimParameters.kernel_func,
                               SimParameters.kernel_width,
@@ -610,7 +610,7 @@ int main(int argc, const char** argv)
     if (has_valid_parameters && SimParameters.verbosity > 0) {
       printf("auto-tuned h = %e (eta = %f, type = %i, kernel = %s)\n", 
              SimParameters.kernel_h, 
-             SimParameters.eta, 
+             SimParameters.kernel_eta, 
              SimParameters.kernel_auto_type,
              SimParameters.kernel_name);
     }
@@ -789,12 +789,12 @@ bool setup_parameters(tSimParameters* P,
   P->kernel_func = NULL;
   P->kernel_auto_type = 1;
   P->hash_load_factor = 0.10;
-  P->kernel_width = 0.0;
-  P->kernel_h = 0.0;  // implies auto-tune
-  P->eta = 1.10;  // 1.20 ?
+  P->kernel_width = 0.0; // always defined through kernel_name below
+  P->kernel_h = 0.0;     // zero implies auto-tune
+  P->kernel_eta = 1.10;  // 1.20 ?
   P->gamma = 5.0 / 3.0;
-  P->alpha = 0.0;
-  P->beta = 0.0;
+  P->alpha = 1.0;
+  P->beta = 2.0;
   P->epsilon = 0.0;
   P->epsbn = 0.100;
   P->epsbt = 0.025;
@@ -856,8 +856,8 @@ bool setup_parameters(tSimParameters* P,
     if (P->gamma < 1.0 || P->gamma > 3.0) return false;
   }
 
-  if (argsio_get_real(A, "eta", &(P->eta))) {
-    if (P->eta < 1.0) return false; // FIXME: check *correct* bounds 
+  if (argsio_get_real(A, "kernel-eta", &(P->kernel_eta))) {
+    if (P->kernel_eta < 0.5 || P->kernel_eta > 2.0) return false; // FIXME: check *correct* bounds 
   }
 
   // FIXME: this one could use a safety check (buffer length?)
@@ -1021,7 +1021,7 @@ bool serialize_parameters(const tSimParameters* P,
   sprintf(buffer, "gamma=%.16e", P->gamma);
   argsio_add_kv(&A, buffer);
 
-  sprintf(buffer, "eta=%.16e", P->eta);
+  sprintf(buffer, "kernel-eta=%.16e", P->kernel_eta);
   argsio_add_kv(&A, buffer);
 
   sprintf(buffer, "alpha=%.16e", P->alpha);
