@@ -71,11 +71,17 @@ enum enum_stepper {
   stepper_heun   = 2
 };
 
+enum enum_viscosity {
+  viscosity_off      = 0,
+  viscosity_monaghan = 1
+};
+
 typedef struct tSimParameters {
   double dt;
   int steps;
   int threads;
   int verbosity;
+  int viscosity;
   int kernel_auto_type;
   double hash_load_factor;
   kernel_2d_func_ptr kernel_func;
@@ -85,7 +91,7 @@ typedef struct tSimParameters {
   double gamma;
   double alpha;
   double beta;
-  double epsilon;
+  double eta;
   double gx;     // gravity vector (gx, gy)
   double gy;
   double epsbt;  // tangent direction barrier loss
@@ -252,11 +258,12 @@ void dot_summation_callback(int i, int j, void* aux) {
 
   const double mj = p[j].m;
   const double ci = pi / (rhoi * rhoi);
-  const double Aij = mj * (ci + pj / (rhoj * rhoj));
 
-  // TODO: artificial viscosity switch ?
-  // TODO: actual viscosity ?
-  // TODO: thermal conduction ?
+  double Aij = mj * (ci + pj / (rhoj * rhoj));
+
+  if (SimParameters.viscosity == viscosity_monaghan) {
+    // TODO: add effect to Aij
+  }
 
   p[i].vxdot -= Aij * wx;
   p[i].vydot -= Aij * wy;
@@ -793,9 +800,10 @@ bool setup_parameters(tSimParameters* P,
   P->kernel_h = 0.0;     // zero implies auto-tune
   P->kernel_eta = 1.10;  // 1.20 ?
   P->gamma = 5.0 / 3.0;
+  P->viscosity = viscosity_off;
   P->alpha = 1.0;
   P->beta = 2.0;
-  P->epsilon = 0.0;
+  P->eta = 0.0; // zero implies auto-set based on kernel_h
   P->epsbn = 0.100;
   P->epsbt = 0.025;
   P->trace_steps = 10;
@@ -810,6 +818,10 @@ bool setup_parameters(tSimParameters* P,
 
   if (argsio_get_int(A, "verbosity", &(P->verbosity))) {
     if (P->verbosity < 0) return false;
+  }
+
+  if (argsio_get_int(A, "viscosity", &(P->viscosity))) {
+    if (P->viscosity != viscosity_off && P->viscosity != viscosity_monaghan) return false;
   }
 
   if (argsio_get_real(A, "dt", &(P->dt))) {
@@ -884,6 +896,10 @@ bool setup_parameters(tSimParameters* P,
 
   if (argsio_get_real(A, "beta", &(P->beta))) {
     if (P->beta < 0.0) return false;
+  }
+
+  if (argsio_get_real(A, "eta", &(P->eta))) {
+    if (P->eta < 0.0) return false;
   }
 
   if (argsio_get_real(A, "epsbn", &(P->epsbn))) {
@@ -1030,7 +1046,7 @@ bool serialize_parameters(const tSimParameters* P,
   sprintf(buffer, "beta=%.16e", P->beta);
   argsio_add_kv(&A, buffer);
 
-  sprintf(buffer, "epsilon=%.16e", P->epsilon);
+  sprintf(buffer, "eta=%.16e", P->eta);
   argsio_add_kv(&A, buffer);
 
   sprintf(buffer, "epsbn=%.16e", P->epsbn);
