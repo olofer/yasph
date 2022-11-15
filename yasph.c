@@ -254,20 +254,37 @@ void dot_summation_callback(int i, int j, void* aux) {
   const double xj = p[j].x;
   const double yj = p[j].y;
 
-  (*SimParameters.kernel_func)(xi - xj, yi - yj, SimParameters.kernel_h, &w, &wx, &wy);
+  const double dxij = xi - xj;
+  const double dyij = yi - yj;
+
+  (*SimParameters.kernel_func)(dxij, dyij, SimParameters.kernel_h, &w, &wx, &wy);
 
   const double mj = p[j].m;
   const double ci = pi / (rhoi * rhoi);
 
-  double Aij = mj * (ci + pj / (rhoj * rhoj));
-
-  if (SimParameters.viscosity == viscosity_monaghan) {
-    // TODO: add effect to Aij
-  }
+  const double Aij = mj * (ci + pj / (rhoj * rhoj));
 
   p[i].vxdot -= Aij * wx;
   p[i].vydot -= Aij * wy;
-  p[i].udot += ci * mj * ( (p[i].vx - p[j].vx) * wx + (p[i].vy - p[j].vy) * wy );
+
+  const double vxi = p[i].vx;
+  const double vyi = p[i].vy;
+
+  const double vxj = p[j].vx;
+  const double vyj = p[j].vy;
+
+  const double dvxij = vxi - vxj;
+  const double dvyij = vyi - vyj;
+
+  p[i].udot += ci * mj * (dvxij * wx + dvyij * wy);
+
+  if (SimParameters.viscosity != viscosity_monaghan) return;
+
+  const double vdotr = dvxij * dxij + dvyij * dyij;
+
+  if (vdotr > 0.0) return;
+
+  /* ... TBD: modify vxdot, vydot */
 }
 
 /* ------------------------------------------------------------ */
