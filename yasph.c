@@ -7,7 +7,7 @@
 // TODO: viscosity parameters implementations (classic SPH style)
 // TODO: warning indicators for Courant condition breaches (counts/step) c^2 = dp/drho
 // TODO: cut out glue I/O code into a separate header file
-// TODO: (completely) implement sim parameters serialization (and execute it)
+// TODO: (completely) implement sim parameters serialization
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -98,6 +98,7 @@ typedef struct tSimParameters {
   int frame_steps;
   char frame_file[MAX_FILENAME_LENGTH];
   char final_file[MAX_FILENAME_LENGTH];
+  char param_file[MAX_FILENAME_LENGTH];
   int num_barriers;
   tBarrierData barrier[MAX_BARRIERS];
 } tSimParameters;
@@ -114,6 +115,9 @@ bool offload_particlefile(const char* outputfilename,
 
 bool setup_parameters(tSimParameters* P,
                       const tArgsio* A);
+
+bool serialize_parameters(const tSimParameters* P,
+                          const char* paramsfilename);
 
 /* global simulation parameters */
 tSimParameters SimParameters;
@@ -619,6 +623,12 @@ int main(int argc, const char** argv)
     SimParameters.threads = max_threads;
   }
 
+  if (strlen(SimParameters.param_file) != 0) {
+    if (!serialize_parameters(&SimParameters, SimParameters.param_file)) {
+      printf("failed to write parameters file: \"%s\"\n", SimParameters.param_file);
+    }
+  }
+
   tHashIndex2D hti;
   const bool index_is_up = (allocate_HashIndex2D(&hti, 
                                                  num_particles, 
@@ -884,8 +894,9 @@ bool setup_parameters(tSimParameters* P,
     if (P->epsbt < 0.0 || P->epsbt > 1.0) return false;
   }
 
-  // FIXME: this one could use a safety check (buffer length?)
+  // FIXME: these ones could use a safety check (buffer length?)
   argsio_get_value(A, "final-file", P->final_file);
+  argsio_get_value(A, "param-file", P->param_file);
 
   // reused parsing buffers
   char textvalue[1024];
