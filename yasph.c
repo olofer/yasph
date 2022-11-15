@@ -6,7 +6,6 @@
 
 // TODO: warning indicators for Courant condition breaches (counts/step) c^2 = dp/drho
 // TODO: cut out glue I/O code into a separate header file
-// TODO: (completely) implement sim parameters serialization
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -1031,8 +1030,6 @@ bool serialize_parameters(const tSimParameters* P,
 
   char buffer[1024];
 
-  /* NOTE: this is incomplete (under construction) */
-
   tArgsio A;
   argsio_init(&A, 1024);
 
@@ -1040,6 +1037,9 @@ bool serialize_parameters(const tSimParameters* P,
   argsio_add_kv(&A, buffer);
 
   sprintf(buffer, "verbosity=%i", P->verbosity);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "viscosity=%i", P->viscosity);
   argsio_add_kv(&A, buffer);
 
   sprintf(buffer, "dt=%.16e", P->dt);
@@ -1051,8 +1051,23 @@ bool serialize_parameters(const tSimParameters* P,
   sprintf(buffer, "trace-steps=%i", P->trace_steps);
   argsio_add_kv(&A, buffer);
 
+  if (strlen(P->trace_file) > 0) {
+    sprintf(buffer, "trace-file=%s", P->trace_file);
+    argsio_add_kv(&A, buffer);
+  }
+
   sprintf(buffer, "frame-steps=%i", P->frame_steps);
   argsio_add_kv(&A, buffer);
+
+  if (strlen(P->frame_file) > 0) {
+    sprintf(buffer, "frame-file=%s", P->frame_file);
+    argsio_add_kv(&A, buffer);
+  }
+
+  if (strlen(P->final_file) > 0) {
+    sprintf(buffer, "final-file=%s", P->final_file);
+    argsio_add_kv(&A, buffer);
+  }
 
   sprintf(buffer, "kernel-name=%s", P->kernel_name);
   argsio_add_kv(&A, buffer);
@@ -1087,7 +1102,22 @@ bool serialize_parameters(const tSimParameters* P,
   sprintf(buffer, "gravity=%.16e,%.16e", P->gx, P->gy);
   argsio_add_kv(&A, buffer);
 
-  // TODO: offload all barrier specifications
+  for (int i = 0; i < P->num_barriers; i++) {
+    switch (P->barrier[i].type) {
+      case barrier_wall_type:
+        sprintf(buffer, 
+                "barrier-wall:%i=%.16e,%.16e,%.16e,%.16e", 
+                i, P->barrier[i].x0, P->barrier[i].y0, P->barrier[i].x1, P->barrier[i].y1);
+        argsio_add_kv(&A, buffer);
+        break;
+      case barrier_ball_type:
+        sprintf(buffer, 
+                "barrier-ball:%i=%.16e,%.16e,%.16e", 
+                i, P->barrier[i].x0, P->barrier[i].y0, P->barrier[i].r);
+        argsio_add_kv(&A, buffer);
+        break;
+    }
+  }
 
   if (!argsio_all_unique(&A)) {
     printf("warning: non-unique key(s) after serialization\n");
