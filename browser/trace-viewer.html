@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<input type="file" id="file-input"/>
+<pre id = "file-info">No data yet.</pre>
+
+<div style="width: 1200px;"><canvas id="myChart"></canvas></div>
+
+<script>
+
+// Seems to work OK in Brave, and maybe Edge
+// How do I make the chart automatically resize to the browser full inner window?
+
+// What is the version requirement of chart.js here?
+// https://www.chartjs.org/chartjs-plugin-zoom/samples/pan-region.html
+
+let csvdata = [];
+let csvcols = [];  // names of columns (picked from header)
+
+function xLabelGenerator(value, index, ticks) {
+  const v = this.getLabelForValue(value);
+  if (Math.abs(v - Math.floor(v)) < 1.0e-12) return v.toFixed(0); 
+    else return v.toFixed(8); 
+}
+
+const data = {
+  labels: [0,0.5,2,3,4,5,6.25,7,8,9],
+  datasets: [
+    {
+      label: 'dummy dataset 1',
+      data: [-1,1,-1,1,0,3,4,2,1,2],
+    },
+    {
+      label: 'dummy dataset 2',
+      data: [9,8,7,6,5,4,3,2,1,0],
+      showLine: false,
+    }
+  ]
+};
+
+const config = {
+  type: 'line',
+  data: data,
+  options: {
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: '(axis TBD)',
+        },
+        ticks: {
+          callback: xLabelGenerator,
+        },
+      },
+    },
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: false,
+        text: '(title TBD)',
+      },
+    },
+  },
+};
+
+const ctx = document.getElementById('myChart').getContext('2d');
+const chart = new Chart(ctx, config);
+
+for (var i = 0; i < chart.data.datasets.length; i++) {
+  chart.setDatasetVisibility(i, false);
+}
+chart.update();
+
+function updateChartFromCSV() {
+  while (chart.data.datasets.length > 0) {
+    chart.data.datasets.pop();
+  }
+  chart.data.labels = [];
+  chart.update();
+  // csvcols, csvdata -> data.datasets clear and re-populate; and set visibility false
+  var xidx = csvcols.indexOf('time');
+  if (xidx == -1) xidx = csvcols.indexOf('step');
+  console.log(xidx);
+  if (xidx == -1) return;
+  const xlabel = csvcols[xidx]; 
+  for (var r = 0; r < csvdata.length; r++)
+    chart.data.labels.push(csvdata[r][xidx]);  // should be [sec]
+  for (var i = 0; i < csvcols.length; i++) {
+    //if (csvcols[i] == 'time' || csvcols[i] == 'step') continue;
+    if (csvcols[i] == 'time') continue;
+    const newDataset = {
+        label: csvcols[i],
+        data: [],
+        showLine: true,
+      };
+    for (var r = 0; r < csvdata.length; r++) 
+      newDataset.data.push(csvdata[r][i]);
+    chart.data.datasets.push(newDataset);
+  }
+  for (var i = 0; i < chart.data.datasets.length; i++) {
+    chart.setDatasetVisibility(i, false);
+  }
+  if (xlabel == 'time')
+    chart.config.options.scales.x.title.text = xlabel + ' [seconds]'; 
+  else
+    chart.config.options.scales.x.title.text = xlabel + ' [index]';
+  chart.update();
+}
+
+function dataIsTabular(d) {
+  const nrows = d.length;
+  if (nrows == 0)
+    return false;
+  const ncols = d[0].length;
+  for (var i = 0; i < nrows; i++) {
+    if (d[i].length != ncols)
+      return false;
+  }
+  return true;
+}
+
+function isNotEmptyAndNotComment(s) {
+  if (s.length == 0) return false;
+  if (s[0] == '#') return false;
+  return true;
+}
+
+function commaSplitSingleRow(s) {
+  return s.split(",").map(function(u) {return parseFloat(u.trim())});
+}
+
+function parseCSV(contents) {
+  const rows = contents.split("\n").filter(isNotEmptyAndNotComment);
+  return rows.map(commaSplitSingleRow);
+}
+
+function parseColumnLabels(contents, ncols) {
+  var colnames = [];
+  for (var i = 0; i < ncols; i++) colnames.push('col' + i);
+  var headerLine = contents.split('\n').shift();
+  // console.log(headerLine);
+  if (headerLine[0] == '#') {
+    var hsplit = headerLine.substring(1, headerLine.length).split(",");
+    if (hsplit.length == ncols) {
+      for (var i = 0; i < ncols; i++) colnames[i] = hsplit[i];
+    }
+  }
+  return colnames.map(function(u) {return u.trim()});
+}
+
+function readCSV(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var contents = e.target.result;
+    csvdata = parseCSV(contents);
+    const element = document.getElementById('file-info');
+    if (!dataIsTabular(csvdata)) {
+      element.textContent = "(incompatible file)";
+      csvdata = []
+      csvcols = []
+    } else {
+      csvcols = parseColumnLabels(contents, csvdata[0].length);
+      console.log(csvcols);
+      updateChartFromCSV();
+      element.textContent = csvdata.length.toString() + " rows, " + csvdata[0].length.toString() + " columns";
+    }
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('file-input').addEventListener('change', readCSV, false);
+
+</script>
+
+</body>
+</html>

@@ -22,5 +22,8 @@ This should take about a minute. Then open `browser/frame-player.html` in a brow
 ### Demo not depending on post-test files
 In the `build` folder run the script `../scripts/demo.sh` as a self-contained illustration of how to run and use the program. Run the browser program on the output file `octagon.yashp` to playback simulation results.
 
+### Diagnostics trace files
+The browser program `browser/trace-viewer.html` can be used to view time traces of column data in the output files specified with the `trace-file` (and `trace-steps`) options. These files are basic CSV files. 
+
 ## Useful references
 TBD.
