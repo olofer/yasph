@@ -7,12 +7,11 @@
 <input type="file" id="file-input"/>
 <pre id = "file-info">No data yet.</pre>
 
-<div style="width: 1200px;"><canvas id="myChart"></canvas></div>
+<div style="position: relative; height: 90vh">
+  <canvas id="myChart"></canvas>
+</div>
 
 <script>
-
-// Seems to work OK in Brave, and maybe Edge
-// How do I make the chart automatically resize to the browser full inner window?
 
 // What is the version requirement of chart.js here?
 // https://www.chartjs.org/chartjs-plugin-zoom/samples/pan-region.html
@@ -45,6 +44,8 @@ const config = {
   type: 'line',
   data: data,
   options: {
+    maintainAspectRatio: false,
+    responsive: true,
     scales: {
       x: {
         title: {
@@ -56,7 +57,6 @@ const config = {
         },
       },
     },
-    responsive: true,
     plugins: {
       legend: {
         position: 'top',
