@@ -4,7 +4,7 @@
 
 */
 
-// TODO: warning indicators for Courant condition breaches (counts/step) c^2 = dp/drho
+// TODO: integrate the time-step monitoring calculations (tf, tcv)
 // TODO: cut out glue I/O code into a separate header file
 
 #include <stdlib.h>
@@ -126,6 +126,36 @@ bool serialize_parameters(const tSimParameters* P,
 
 /* global simulation parameters */
 tSimParameters SimParameters;
+
+/* ------------------------------------------------------------ */
+/* Timestep monitoring subprograms (h is constant)              */
+/* ------------------------------------------------------------ */
+
+double calc_timestep_delta_tf(double h,
+                              int nump,
+                              const tParticle* sp)
+{
+  double maxval = 0.0;
+  for (int i = 0; i < nump; i++) {
+    const double fnorm2 = sp[i].vxdot * sp[i].vxdot + sp[i].vydot * sp[i].vydot;
+    if (fnorm2 > maxval) maxval = fnorm2;
+  }
+  return (maxval > 0.0 ? h / sqrt(maxval) : 0.0);
+}
+
+double calc_timestep_delta_tcv(double h,
+                               double alpha,
+                               int nump,
+                               const tParticle* sp)
+{
+  const double coef = 1.0 + 0.6 * alpha;
+  double maxval = 0.0;
+  for (int i = 0; i < nump; i++) {
+    const double ci = sp[i].c;
+    if (ci > maxval) maxval = ci;
+  }
+  return (maxval > 0.0 ? h / (coef * maxval) : 0.0);
+}
 
 /* ------------------------------------------------------------ */
 /* Simulation state diagnostics                                 */
@@ -326,8 +356,8 @@ void refresh_rho_vdot_and_udot(const tHashIndex2D* hti,
     sp[i].rho = 0.0;
     singleInteract_HashIndex2D(hti, i, &density_summation_callback, sp);
     sp[i].p = gamma_minus_one * sp[i].u * sp[i].rho;
-    if (SimParameters.viscosity == viscosity_off) continue;
-    sp[i].c = sqrt_g_gm1 * sqrt(sp[i].u);  // equals sqrt(gamma*P/rho) = speed of sound
+    if (SimParameters.viscosity == viscosity_off) sp[i].c = 0.0;
+      else sp[i].c = sqrt_g_gm1 * sqrt(sp[i].u);  // equals sqrt(gamma*P/rho) = speed of sound
   }
 
   const double gx = SimParameters.gx;
