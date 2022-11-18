@@ -1,5 +1,5 @@
 # yasph
-Plain `C` smooth particle hydrodynamics in 2D using basic `OpenMP`. For educational purposes. 
+Plain `C` smoothed particle hydrodynamics in 2D using basic `OpenMP`. For educational purposes. 
 
 ## Compile & test
 Standard method:
@@ -20,10 +20,10 @@ If compiled and tested and all seems well, do this (in the `build` folder):
 This should take about a minute. Then open `browser/frame-player.html` in a browser. Select the newly created file `barriers.yasph` and watch the particles evolve (the browser program shows intructions at the bottom of its page on how you can interact with the playback).
 
 ### Demo not depending on post-test files
-In the `build` folder run the script `../scripts/demo.sh` as a self-contained illustration of how to run and use the program. Run the browser program on the output file `octagon.yashp` to playback simulation results.
+In the `build` folder run the script `../scripts/demo.sh 4000` as a self-contained illustration of how to run and use the program. Run the browser program on the output file `octagon.yasph` to playback simulation results.
 
 ### Diagnostics trace files
-The browser program `browser/trace-viewer.html` can be used to view time traces of column data in the output files specified with the `trace-file` (and `trace-steps`) options. These files are basic CSV files. 
+The browser program `browser/trace-viewer.html` can be used to view time traces of column data in the output files specified with the `trace-file` (and `trace-steps`) options. These files are basic CSV files. The above example script generates `octagon-trace.yasph`.
 
 ## Useful references
 
