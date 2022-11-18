@@ -4,7 +4,7 @@
 
 */
 
-// TODO: complete the calculation of tcv (it is currently simplified, the full expression involves beta etc)
+// NOTE: verify time step monitoring --- and it may be better to re-locate the diagnostics calc 
 // TODO: cut out glue I/O code into a separate header file
 
 #include <stdlib.h>
@@ -33,11 +33,12 @@ typedef struct tParticle {
   double rho;   // evaluated from state (m, x, y); exact conservation of mass
   double p;     // used to compute accelerations
   double c;     // local speed of sound
+  double mumax;
   double vxdot;
   double vydot;
   double udot;
-  int type;
-  int status;
+  //int type;
+  //int status;
 } tParticle;
 
 typedef struct tDotState {
@@ -137,7 +138,10 @@ double calc_timestep_delta_tf(double h,
 {
   double maxval = 0.0;
   for (int i = 0; i < nump; i++) {
-    const double fnorm2 = sp[i].vxdot * sp[i].vxdot + sp[i].vydot * sp[i].vydot;
+    const double mi = sp[i].m;
+    const double xi = sp[i].vxdot / mi;
+    const double yi = sp[i].vydot / mi;
+    const double fnorm2 = xi * xi + yi * yi;
     if (fnorm2 > maxval) maxval = fnorm2;
   }
   return (maxval > 0.0 ? h / sqrt(maxval) : 0.0);
@@ -145,16 +149,17 @@ double calc_timestep_delta_tf(double h,
 
 double calc_timestep_delta_tcv(double h,
                                double alpha,
+                               double beta,
                                int nump,
                                const tParticle* sp)
 {
-  const double coef = 1.0 + 0.6 * alpha;
   double maxval = 0.0;
   for (int i = 0; i < nump; i++) {
     const double ci = sp[i].c;
-    if (ci > maxval) maxval = ci;
+    const double val = ci + 0.6 * (alpha * ci + beta * sp[i].mumax);
+    if (val > maxval) maxval = val;
   }
-  return (maxval > 0.0 ? h / (coef * maxval) : 0.0);
+  return (maxval > 0.0 ? h / maxval : 0.0);
 }
 
 /* ------------------------------------------------------------ */
@@ -208,7 +213,7 @@ void calc_diagnostics(tSimDiagnostics* diag,
   diag->cmx /= diag->M;
   diag->cmy /= diag->M;
   diag->tf = calc_timestep_delta_tf(P->kernel_h, nump, sp);
-  diag->tcv = (P->viscosity != viscosity_off ? calc_timestep_delta_tcv(P->kernel_h, P->alpha, nump, sp) : 0.0);
+  diag->tcv = (P->viscosity != viscosity_off ? calc_timestep_delta_tcv(P->kernel_h, P->alpha, P->beta, nump, sp) : 0.0);
 }
 
 void trace_write_header(FILE* pf) {
@@ -328,6 +333,8 @@ void dot_summation_callback(int i, int j, void* aux) {
 
   p[i].vxdot -= Bij * wx;
   p[i].vydot -= Bij * wy;
+
+  if (mu > p[i].mumax) p[i].mumax = mu;
 }
 
 /* ------------------------------------------------------------ */
@@ -373,6 +380,7 @@ void refresh_rho_vdot_and_udot(const tHashIndex2D* hti,
     sp[i].vxdot = 0.0;
     sp[i].vydot = 0.0;
     sp[i].udot = 0.0;
+    sp[i].mumax = 0.0;
     singleInteract_HashIndex2D(hti, i, &dot_summation_callback, sp);
     sp[i].vxdot += gx;
     sp[i].vydot += gy;
