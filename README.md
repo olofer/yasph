@@ -1,5 +1,5 @@
 # yasph
-Plain `C` smooth particle hydrodynamics in 2D using basic `OpenMP`.
+Plain `C` smooth particle hydrodynamics in 2D using basic `OpenMP`. For educational purposes. 
 
 ## Compile & test
 Standard method:
@@ -26,4 +26,9 @@ In the `build` folder run the script `../scripts/demo.sh` as a self-contained il
 The browser program `browser/trace-viewer.html` can be used to view time traces of column data in the output files specified with the `trace-file` (and `trace-steps`) options. These files are basic CSV files. 
 
 ## Useful references
-TBD.
+
+* J. J. Monaghan _Smoothed particle hydrodynamics_
+https://doi.org/10.1146/annurev.aa.30.090192.002551
+
+* D. J. Price _Smoothed particle hydrodynamics and magnetohydrodynamics_
+https://doi.org/10.1016/j.jcp.2010.12.011
