@@ -4,7 +4,7 @@
 
 */
 
-// TODO: integrate the time-step monitoring calculations (tf, tcv)
+// TODO: complete the calculation of tcv (it is currently simplified, the full expression involves beta etc)
 // TODO: cut out glue I/O code into a separate header file
 
 #include <stdlib.h>
@@ -171,6 +171,8 @@ typedef struct tSimDiagnostics {
   double px;
   double py;
   double Lz;
+  double tf;
+  double tcv;
 } tSimDiagnostics;
 
 void calc_diagnostics(tSimDiagnostics* diag,
@@ -205,20 +207,23 @@ void calc_diagnostics(tSimDiagnostics* diag,
   }
   diag->cmx /= diag->M;
   diag->cmy /= diag->M;
+  diag->tf = calc_timestep_delta_tf(P->kernel_h, nump, sp);
+  diag->tcv = (P->viscosity != viscosity_off ? calc_timestep_delta_tcv(P->kernel_h, P->alpha, nump, sp) : 0.0);
 }
 
 void trace_write_header(FILE* pf) {
-  fprintf(pf, "# step,time,mass,cmx,cmy,energy,kin,pot,px,py,lz\n");
+  fprintf(pf, "# step,time,mass,cmx,cmy,energy,kin,pot,px,py,lz,tf,tcv\n");
 }
 
 void trace_write_row(FILE* pf, 
                      int64_t step, 
                      double time, 
-                     const tSimDiagnostics* diag)
+                     const tSimDiagnostics* diag,
+                     double dt)
 {
   fprintf(pf, 
-          "%jd,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e\n",
-          step, time, diag->M, diag->cmx, diag->cmy, diag->E, diag->Ek, diag->Eg, diag->px, diag->py, diag->Lz);
+          "%jd,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e\n",
+          step, time, diag->M, diag->cmx, diag->cmy, diag->E, diag->Ek, diag->Eg, diag->px, diag->py, diag->Lz, diag->tf / dt, diag->tcv / dt);
 }
 
 /* ------------------------------------------------------------ */
@@ -746,7 +751,7 @@ int main(int argc, const char** argv)
                        &SimParameters);
 
       if (use_tracefile && --trace_counter == 0) {
-        trace_write_row(ptracefile, k, t, &state_stats);
+        trace_write_row(ptracefile, k, t, &state_stats, SimParameters.dt);
         trace_counter = SimParameters.trace_steps;
       }
 
