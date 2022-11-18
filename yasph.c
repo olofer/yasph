@@ -3,8 +3,7 @@
 "yet another smoothed particle hydrodynamics" (YASPH) simulation code
 
 */
-
-// NOTE: verify time step monitoring --- and it may be better to re-locate the diagnostics calc 
+ 
 // TODO: cut out glue I/O code into a separate header file
 
 #include <stdlib.h>
@@ -132,21 +131,22 @@ tSimParameters SimParameters;
 /* Timestep monitoring subprograms (h is constant)              */
 /* ------------------------------------------------------------ */
 
+// dt value defined through: 0.5*|acc|*(dt)^2 = h
 double calc_timestep_delta_tf(double h,
                               int nump,
                               const tParticle* sp)
 {
   double maxval = 0.0;
   for (int i = 0; i < nump; i++) {
-    const double mi = sp[i].m;
-    const double xi = sp[i].vxdot / mi;
-    const double yi = sp[i].vydot / mi;
-    const double fnorm2 = xi * xi + yi * yi;
-    if (fnorm2 > maxval) maxval = fnorm2;
+    const double accx = sp[i].vxdot;
+    const double accy = sp[i].vydot;
+    const double acc2 = accx * accx + accy * accy;
+    if (acc2 > maxval) maxval = acc2;
   }
-  return (maxval > 0.0 ? h / sqrt(maxval) : 0.0);
+  return (maxval > 0.0 ? sqrt(2.0 * h / sqrt(maxval)) : 0.0);
 }
 
+// dt value defined in terms of local speed of sound
 double calc_timestep_delta_tcv(double h,
                                double alpha,
                                double beta,
@@ -753,16 +753,6 @@ int main(int argc, const char** argv)
 
     for (int64_t k = 0; k < SimParameters.steps; k++)
     {
-      calc_diagnostics(&state_stats,
-                       num_particles,
-                       ptr_particle,
-                       &SimParameters);
-
-      if (use_tracefile && --trace_counter == 0) {
-        trace_write_row(ptracefile, k, t, &state_stats, SimParameters.dt);
-        trace_counter = SimParameters.trace_steps;
-      }
-
       if (use_framefile && --frame_counter == 0) {
         frame_write(pframefile, k, t, num_particles, ptr_particle);
         frame_counter = SimParameters.frame_steps;
@@ -783,6 +773,18 @@ int main(int argc, const char** argv)
 
       clkutil_stamp(dotcalc_toc);
       dotcalc_ticks += clkutil_elapsed(dotcalc_tic, dotcalc_toc);
+
+      // Place diagnostics calc after the particle vxdot, vydot, and udot have been computed for the state.
+      // But must be before the particles are moved.
+      calc_diagnostics(&state_stats,
+                       num_particles,
+                       ptr_particle,
+                       &SimParameters);
+
+      if (use_tracefile && --trace_counter == 0) {
+        trace_write_row(ptracefile, k, t, &state_stats, SimParameters.dt);
+        trace_counter = SimParameters.trace_steps;
+      }
 
       update_particles(stepper_coeffs[0],
                        num_particles,
