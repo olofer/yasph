@@ -171,6 +171,7 @@ typedef struct tSimDiagnostics {
   double cmy;
   double M;
   double Ek;
+  double Eu;
   double Eg;
   double E;
   double px;
@@ -191,6 +192,7 @@ void calc_diagnostics(tSimDiagnostics* diag,
   diag->cmy = 0.0;
   diag->M = 0.0;
   diag->Ek = 0.0;
+  diag->Eu = 0.0;
   diag->Eg = 0.0;
   diag->E = 0.0;
   diag->px = 0.0;
@@ -203,9 +205,11 @@ void calc_diagnostics(tSimDiagnostics* diag,
     diag->cmy += mi * sp[i].y;
     const double Ki = 0.5 * mi * (sp[i].vx * sp[i].vx + sp[i].vy * sp[i].vy);
     diag->Ek  += Ki;
+    const double Ui = mi * sp[i].u;
+    diag->Eu +=  Ui;
     const double Vi = -1.0 * mi * (gx * sp[i].x + gy * sp[i].y);
     diag->Eg  += Vi;
-    diag->E   += Ki + Vi + mi * sp[i].u;
+    diag->E   += Ki + Vi + Ui;
     diag->px  += mi * sp[i].vx;
     diag->py  += mi * sp[i].vy;
     diag->Lz  += mi * (sp[i].x * sp[i].vy - sp[i].y * sp[i].vx);  // (x,y,0) cross m*(vx,vy,0)
@@ -217,7 +221,7 @@ void calc_diagnostics(tSimDiagnostics* diag,
 }
 
 void trace_write_header(FILE* pf) {
-  fprintf(pf, "# step,time,mass,cmx,cmy,energy,kin,pot,px,py,lz,tf,tcv\n");
+  fprintf(pf, "# step,time,mass,cmx,cmy,energy,kin,int,pot,px,py,lz,tf,tcv\n");
 }
 
 void trace_write_row(FILE* pf, 
@@ -227,8 +231,8 @@ void trace_write_row(FILE* pf,
                      double dt)
 {
   fprintf(pf, 
-          "%jd,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e\n",
-          step, time, diag->M, diag->cmx, diag->cmy, diag->E, diag->Ek, diag->Eg, diag->px, diag->py, diag->Lz, diag->tf / dt, diag->tcv / dt);
+          "%jd,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e,%.16e\n",
+          step, time, diag->M, diag->cmx, diag->cmy, diag->E, diag->Ek, diag->Eu, diag->Eg, diag->px, diag->py, diag->Lz, diag->tf / dt, diag->tcv / dt);
 }
 
 /* ------------------------------------------------------------ */
@@ -615,7 +619,7 @@ int main(int argc, const char** argv)
                                                  configfilename);
 
   if (nargs_from_file == 0) {
-    printf("no arguments read from \"%s\" (empty or missing file)\n", 
+    printf("warning: no arguments read from \"%s\" (empty or missing file)\n", 
            configfilename);
   }
 
@@ -626,9 +630,13 @@ int main(int argc, const char** argv)
                                                     num_cli_args, 
                                                     &argv[3], 
                                                     false);
-    printf("appended (or overwrote) %i %s from command line\n", 
-           num_cli_kv_added, 
-           (num_cli_kv_added == 1 ? "option" : "options"));
+    int probed_verbosity = 0;
+    const bool verbosity_specified = argsio_get_int(&args, "verbosity", &probed_verbosity);
+    if ((verbosity_specified && probed_verbosity != 0) || !verbosity_specified) {
+      printf("appended (or overwrote) %i %s from command line\n", 
+             num_cli_kv_added, 
+             (num_cli_kv_added == 1 ? "option" : "options"));
+    }
   }
 
   bool has_valid_parameters = setup_parameters(&SimParameters, 
@@ -641,11 +649,11 @@ int main(int argc, const char** argv)
   if ((strcmp(SimParameters.final_file, particlefilename) == 0) ||
       (strcmp(SimParameters.final_file, configfilename) == 0)) {
     SimParameters.final_file[0] = '\0';
-    printf("disabled final-file since it equals an input file\n");
+    printf("warning: disabled final-file since it equals an input file\n");
   }
 
   if (!has_valid_parameters) {
-    printf("failed to parse provided arguments\n");
+    printf("warning: failed to parse provided arguments\n");
   }
 
   argsio_uninit(&args);
@@ -664,7 +672,7 @@ int main(int argc, const char** argv)
                                                       &num_particles);
 
   if (!particles_are_loaded) {
-    printf("failed to load data from \"%s\"\n", 
+    printf("warning: failed to load data from \"%s\"\n", 
            particlefilename);
   }
 
@@ -697,13 +705,13 @@ int main(int argc, const char** argv)
   const int max_threads = omp_get_max_threads();
 
   if (SimParameters.threads > max_threads) {
-    printf("thread usage capped at maximum = %i\n", max_threads);
+    printf("warning: thread usage capped at maximum = %i\n", max_threads);
     SimParameters.threads = max_threads;
   }
 
   if (strlen(SimParameters.param_file) != 0) {
     if (!serialize_parameters(&SimParameters, SimParameters.param_file)) {
-      printf("failed to write parameters file: \"%s\"\n", SimParameters.param_file);
+      printf("warning: failed to write parameters file: \"%s\"\n", SimParameters.param_file);
     }
   }
 
@@ -823,7 +831,8 @@ int main(int argc, const char** argv)
 
     const double total_time_seconds = ((double) clkutil_elapsed(tic, toc)) * 1.0e-9;
     const double total_dotcalc_elapsed = ((double) dotcalc_ticks) * 1.0e-9;
-    printf("elapsed time = %.2f sec (dotcalc = %.2f sec)\n", total_time_seconds, total_dotcalc_elapsed);
+    if (SimParameters.verbosity > 0)
+      printf("elapsed time = %.2f sec (dotcalc = %.2f sec)\n", total_time_seconds, total_dotcalc_elapsed);
 
     if (use_tracefile) {
       fclose(ptracefile);
