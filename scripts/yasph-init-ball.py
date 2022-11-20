@@ -20,6 +20,29 @@ def generate_xy(n, R):
       c += 1
   return x, y
 
+# approximately n points; square lattice (jittered)
+def generate_xy_lattice(n, R, ofsx = 0.0, ofsy = 0.0, jitter = 0.01):
+  x = np.tile(np.nan, (2 * n, ))
+  y = np.tile(np.nan, (2 * n, ))
+  Q = np.pi * R * R / (4 * R * R)
+  N = np.ceil(n / Q)
+  P = int(np.ceil(np.sqrt(N)))
+  a = 2.0 * R / P
+  assert ofsx >= 0 and ofsx < 1
+  assert ofsy >= 0 and ofsy < 1
+  c = 0
+  for i in range(P):
+    xi = i * a * R - R + ofsx * a
+    for j in range(P):
+      yj = j * a * R - R + ofsy * a
+      xc = xi + jitter * a * np.random.randn()
+      yc = yj + jitter * a * np.random.randn()
+      if xc * xc + yc * yc < R * R:
+        x[c] = xc
+        y[c] = yc
+        c += 1
+  return x[:c], y[:c]
+
 def make_table(x, y, density, pressure, area, gamma):
   n = x.shape[0]
   assert y.shape[0] == n
@@ -45,6 +68,7 @@ if __name__ == '__main__':
   parser.add_argument('--pressure', type = float, nargs = '+', help = 'list of pressures (Pa)')
   parser.add_argument('--adiabatic-index', type = float, default = 5.0 / 3.0, help = 'adiabatic index')
   parser.add_argument('--barrier-radius', type = float, default = 1.0)
+  parser.add_argument('--lattice', action = 'store_true')
 
   args = parser.parse_args()
 
@@ -60,7 +84,10 @@ if __name__ == '__main__':
   D = np.tile(0, (0, 6))
 
   for g in range(G):
-    xg, yg = generate_xy(NPG, R)
+    if args.lattice:
+      xg, yg = generate_xy_lattice(NPG, R, g / G, g / G)
+    else:
+      xg, yg = generate_xy(NPG, R)
     assert np.all(np.isfinite(xg)) and np.all(np.isfinite(yg))
     datg = make_table(xg, yg, args.density[g], args.pressure[g], np.pi * R * R, args.adiabatic_index)
     print('P={}, rho={}'.format(args.pressure[g], args.density[g]))
