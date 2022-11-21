@@ -8,16 +8,12 @@
 <canvas id = "thecanvas" width = "900" height = "600" style = "border:3px solid #d0d0d0;"></canvas>
 <pre id = "info">
 Arrows move, +/- (pgup/pgdn) zoom, A acc., S stop, D dec., Z restart, X/C fps, Q/W step, shift +/- point size, 
-F fit, P pingpong, G grid, T autofit, M/N alpha, shift/arrows grid spacing, L toggle tick label
+F fit, P pingpong, G grid, T autofit, M/N alpha, shift/arrows grid spacing, L toggle tick label, O full width
 </pre>
 
 <script>
 
-const full_W = window.innerWidth * .95;
-const full_H = window.innerHeight * .80; // leave some space vertically
-
-// TODO: option to toggle full_W, full_H; also tracking window size changes
-// TODO: option to color (or autosize) by u, or m ? or even vx, vy ?
+// TODO: option to color by distinct values of mass (if a few)
 
 let xydata = []
 
@@ -132,14 +128,15 @@ document.getElementById('file-input').addEventListener('change', readBinaryFile,
 const canvas = document.getElementById("thecanvas");
 const ctx = canvas.getContext("2d");
 
-// console.log(ctx);
+console.log(ctx);
 
-//canvas.width = full_W;
-//canvas.height = full_H;
+var W = canvas.width;
+var H = canvas.height;
+var ASP = W / H;
 
-const W = canvas.width;
-const H = canvas.height;
-const ASP = W / H;
+const OGW = W;
+const OGH = H;
+let FULLWIDTH = false;
 
 const MAXGPP = 0.20;  // at least 5 pixels btw grid lines
 let SHOWGRID = true;
@@ -182,6 +179,27 @@ function calc_pos_w(x) {
 
 function calc_pos_h(y) {
   return (y * m22 + ty);
+}
+
+function resizeWindow() {
+  if (FULLWIDTH) {
+    const full_W = window.innerWidth;
+    const full_H = window.innerHeight;
+    W = 0.98 * full_W;
+    H = 0.80 * full_H;
+  } else {
+    W = OGW;
+    H = OGH;
+  }
+  canvas.width = W;
+  canvas.height = H;
+  ASP = W / H;
+  const yc_ = (ymin + ymax) / 2.0;
+  const dx_ = (xmax - xmin);
+  const newdy_ = dx_ / ASP;
+  ymin = yc_ - newdy_ / 2.0;
+  ymax = yc_ + newdy_ / 2.0;
+  recalcTransform();
 }
 
 function drawGrid(xstr, ystr, adjust_label_pos) {
@@ -362,6 +380,10 @@ function refresh() {
   FRAME += dFRAME;
 }
 
+resizeWindow();
+
+window.addEventListener('resize', resizeWindow, false);
+
 let refresher_id = setInterval(refresh, 1000 / FPS);
 
 // should I return false when handled? else true?
@@ -518,6 +540,11 @@ document.addEventListener('keydown', event => {
   }
   if (key_ == 'l' || key_ == 'L') {
     SHOWLABEL = !SHOWLABEL;
+    return;
+  }
+  if (key_ == 'o' || key_ == 'O') {
+    FULLWIDTH = !FULLWIDTH;
+    resizeWindow();
     return;
   }
 });
