@@ -13,9 +13,8 @@ F fit, P pingpong, G grid, T autofit, M/N alpha, shift/arrows grid spacing, L to
 
 <script>
 
-// TODO: option to color by distinct values of mass (if a few)
-
-let xydata = []
+let xydata = [];
+let ptcolr = []; // array of rgb strings, for example
 
 const filehsz = 2 * Int32Array.BYTES_PER_ELEMENT;   // 1x int64 (8 bytes)
 const framehsz = 2 * Int32Array.BYTES_PER_ELEMENT + Float64Array.BYTES_PER_ELEMENT; // 1x int64 and 1x float64 (16 bytes)
@@ -59,6 +58,45 @@ function are_m_and_u_positive(view, np, nf) {
   return true;
 }
 
+function find_m_range(view, np, nf) {
+  var maxval = Number.MIN_VALUE;
+  var minval = Number.MAX_VALUE;
+  for (var f = 0; f < nf; f++) {
+    for (var i = 0; i < np; i++) {
+      const ofs = get_particle_offset(f, i, np);
+      const mfi = view.getFloat64(ofs, littleEndian);
+      if (mfi < minval) minval = mfi;
+      if (mfi > maxval) maxval = mfi;
+    }
+  }
+  return [minval, maxval];
+}
+
+function makergb(r, g, b){
+  return ["rgb(", r, ",", g, ",", b, ")"].join("");
+}
+
+// Define colors based on specific frame f, use mrange to interpolate color RGB values
+function set_color_from_mass(view, np, f, mrange, colorArray) {
+  let colr = [];
+  const numColors = colorArray.length;
+  const use_single_color = (mrange[0] == mrange[1]);
+  if (use_single_color) {
+    for (var i = 0; i < np; i++) {
+      colr.push(colorArray[0]);
+    }
+    return colr;
+  }
+  const mdiff = mrange[1] - mrange[0];
+  for (var i = 0; i < np; i++) {
+    const ofs = get_particle_offset(f, i, np);
+    const mfi = view.getFloat64(ofs, littleEndian);
+    const j = Math.round( (numColors - 1) * (mfi - mrange[0]) / mdiff );
+    colr.push(colorArray[j]);
+  }
+  return colr;
+}
+
 function is_time_monotonic(view, np, nf) {
   var ofs = get_particle_offset(0, 0, np) - framehsz;
   var fval = view.getFloat64(ofs + 8, littleEndian);
@@ -91,7 +129,8 @@ function readBinaryFile(e) {
   if (!file) return;
   var reader = new FileReader();
   reader.onload = function(e) {
-    xydata = []
+    xydata = [];
+    ptcolr = [];
     var contents = e.target.result;
     const fileLength = contents.byteLength;
 
@@ -109,13 +148,21 @@ function readBinaryFile(e) {
     if (!are_m_and_u_positive(view, nump, numframes))
       return;
 
+    const massrange = find_m_range(view, nump, numframes);
+    console.log(massrange);
+
+    colorTable = ["black", "purple"];
+    ptcolr = set_color_from_mass(view, nump, 0, massrange, colorTable); // use frame 0 
+    //console.log(ptcolr);
+
     xydata = make_xy_array(view, nump, numframes);
 
     const element = document.getElementById('file-info')
     element.textContent = "particles = " + nump + ", frames = " + numframes + ", filesize = " + fileLength; 
     if (!dataShapedAndFinite(xydata)) {
       element.textContent = "(corrupt file)";
-      xydata = []
+      xydata = [];
+      ptcolr = [];
     }
   };
   const element = document.getElementById('file-info')
@@ -129,6 +176,7 @@ const canvas = document.getElementById("thecanvas");
 const ctx = canvas.getContext("2d");
 
 console.log(ctx);
+//console.log(makergb(0,128,255));
 
 var W = canvas.width;
 var H = canvas.height;
@@ -343,9 +391,10 @@ function autoRangeFrame(f) {
 function drawPoints() {
   ctx.globalAlpha = PTALPHA;
   ctx.setTransform(m11, m12, m21, m22, tx, ty);
-  ctx.fillStyle = "black";
+  //ctx.fillStyle = "black";
   const npts = (xydata[FRAME].length - 1) / 2;
   for (var i = 0; i < npts; i++) {
+    ctx.fillStyle = ptcolr[i];
     ctx.beginPath();
     ctx.arc(xydata[FRAME][1 + i * 2], xydata[FRAME][1 + i * 2 + 1], PTRADIUS, 0, Math.PI * 2, false);
     ctx.fill();
