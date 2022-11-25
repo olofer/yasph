@@ -4,6 +4,8 @@
 
 */
  
+// TODO: add probe-steps, probe-file, probe-[type]: arguments
+// TODO: ability to specify physical viscosity -> (alpha, beta) ?
 // TODO: cut out glue I/O code into a separate header file
 
 #include <stdlib.h>
@@ -160,6 +162,14 @@ double calc_timestep_delta_tcv(double h,
     if (val > maxval) maxval = val;
   }
   return (maxval > 0.0 ? h / maxval : 0.0);
+}
+
+double maximum_recommended_timestep(double tf, double tcv) {
+  const double margin = 0.25;
+  if (tcv == 0.0)
+    return margin * tf;  // if tcv calc is turned off
+  else
+    return margin * (tf < tcv ? tf : tcv);
 }
 
 /* ------------------------------------------------------------ */
@@ -757,6 +767,8 @@ int main(int argc, const char** argv)
     const double support_radius = SimParameters.kernel_h * SimParameters.kernel_width;
     double t = 0.0;
 
+    int num_dt_violations = 0;
+
     clkutil_stamp(tic);
 
     for (int64_t k = 0; k < SimParameters.steps; k++)
@@ -793,6 +805,9 @@ int main(int argc, const char** argv)
         trace_write_row(ptracefile, k, t, &state_stats, SimParameters.dt);
         trace_counter = SimParameters.trace_steps;
       }
+
+      const double dt_max = maximum_recommended_timestep(state_stats.tf, state_stats.tcv);
+      if (SimParameters.dt > dt_max) num_dt_violations++;
 
       update_particles(stepper_coeffs[0],
                        num_particles,
@@ -848,6 +863,9 @@ int main(int argc, const char** argv)
 
     if (SimParameters.verbosity > 0)
       printf("stop time = %e (after %i steps with dt = %e)\n", t, SimParameters.steps, SimParameters.dt);
+
+    if (num_dt_violations > 0)
+      printf("warning: timestep criteria violations in %i (out of %i steps)\n", num_dt_violations, SimParameters.steps);
   }
 
   deallocate_HashIndex2D(&hti);
