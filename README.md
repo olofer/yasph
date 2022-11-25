@@ -1,5 +1,5 @@
 # yasph
-Plain `C` smoothed particle hydrodynamics in 2D using basic `OpenMP`. For educational purposes. 
+Plain `C` smoothed particle hydrodynamics in 2D using basic `OpenMP`. For educational purposes. Employs hash-based nearest-neighbour indexing.
 
 ## Compile & test
 Standard method:
@@ -24,6 +24,9 @@ In the `build` folder run the script `../scripts/demo.sh 4000` as a self-contain
 
 ### Diagnostics trace files
 The browser program `browser/trace-viewer.html` can be used to view time traces of column data in the output files specified with the `trace-file` (and `trace-steps`) options. These files are basic CSV files. The above example script generates `octagon-trace.yasph`.
+
+### Gravitational separation demo
+The demonstration program `../scripts/demo-gravity.sh 1000 5e5` sets up a mixture of two low-pressure noble gases that separate in a gravitational field within a circular container. Use the visualization tools under `browser` to playback results. The simulation takes a while.
 
 ## Useful references
 
