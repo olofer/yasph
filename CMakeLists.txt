@@ -28,6 +28,10 @@ add_executable(test_argsio test_argsio.c)
 target_include_directories(test_argsio PUBLIC "include")
 target_compile_options(test_argsio PRIVATE -Wall -Wextra -Wpedantic)
 
+add_executable(test_qtree test_qtree.c)
+target_include_directories(test_qtree PUBLIC "include")
+target_compile_options(test_qtree PRIVATE -Wall -Wextra -Wpedantic)
+
 enable_testing()
 
 add_test(NAME csv-test-nonrandom COMMAND test_io csv-write-read 100 10 0 0 tempfile-nonrandom.csv)
@@ -61,6 +65,15 @@ add_test(NAME index-4 COMMAND test_index ${NumTestPoints} 1.0 0.10)
 add_test(NAME index-5 COMMAND test_index ${NumTestPoints} 1.0 0.20)
 add_test(NAME index-6 COMMAND test_index ${NumTestPoints} 1.0 0.40)
 add_test(NAME index-7 COMMAND test_index ${NumTestPoints} 1.0 0.80)
+
+add_test(NAME qtree-1 COMMAND test_qtree ${NumTestPoints} 1.0 1)  # different numbers for "max leaf"
+add_test(NAME qtree-2 COMMAND test_qtree ${NumTestPoints} 1.0 2)
+add_test(NAME qtree-3 COMMAND test_qtree ${NumTestPoints} 1.0 3)
+add_test(NAME qtree-4 COMMAND test_qtree ${NumTestPoints} 1.0 4)
+add_test(NAME qtree-5 COMMAND test_qtree ${NumTestPoints} 1.0 5)
+add_test(NAME qtree-6 COMMAND test_qtree ${NumTestPoints} 1.0 6)
+add_test(NAME qtree-7 COMMAND test_qtree ${NumTestPoints} 1.0 7)
+add_test(NAME qtree-8 COMMAND test_qtree ${NumTestPoints} 1.0 8)
 
 set(NumTestArgsList "0" "1" "2" "3" "10" "20" "50" "100" "500" "1000")
 foreach(NumTestArgs ${NumTestArgsList})
