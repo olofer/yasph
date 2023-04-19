@@ -12,7 +12,7 @@ See "test_qtree.c" for usage and test.
 
 */
 
-// TODO: helper routine for creation and destrution of the associated memory spaces needed during usage.
+// TODO: missing "qti" version of QT build call
 
 typedef struct tQTPoint {
   double x;
@@ -384,6 +384,40 @@ void quadtree_box_interact(const tQuadTree* root,
   }
 
   return;
+}
+
+typedef struct tQuadTreeIndex {
+  int numpts;
+  int maxnodes;
+  tQTPointPayload* pt;
+  tQTPointPayload* pt_scratch;
+  tQuadTree* nodes_store;
+  tQuadTree root;
+} tQuadTreeIndex;
+
+bool allocateQuadTreeIndex(tQuadTreeIndex* qti, 
+                           int size) 
+{
+  memset(qti, 0, sizeof(tQuadTreeIndex));
+
+  qti->numpts = size;
+  qti->maxnodes = 4 * size;  // maybe 2 always works?
+
+  qti->pt = malloc(sizeof(tQTPointPayload) * qti->numpts);
+  qti->pt_scratch = malloc(sizeof(tQTPointPayload) * qti->numpts);
+  qti->nodes_store = malloc(sizeof(tQuadTree) * qti->maxnodes);
+
+  return (qti->pt != NULL && 
+          qti->pt_scratch != NULL && 
+          qti->nodes_store != NULL);
+}
+
+void freeQuadTreeIndex(tQuadTreeIndex* qti) {
+  if (qti->pt != NULL) free(qti->pt);
+  if (qti->pt_scratch != NULL) free(qti->pt_scratch);
+  if (qti->nodes_store != NULL) free(qti->nodes_store);
+
+  memset(qti, 0, sizeof(tQuadTreeIndex));
 }
 
 #endif 

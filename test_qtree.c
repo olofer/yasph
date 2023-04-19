@@ -61,16 +61,16 @@ int main(int argc, const char** argv)
     return 1;
   } 
 
-  const int maxNumberOfNodes = numpts * 4; // probably only 2 needed here
+  tQuadTreeIndex qti;
 
-  tQTPointPayload* pt = malloc(sizeof(tQTPointPayload) * numpts);
-  tQTPointPayload* pt_scratch = malloc(sizeof(tQTPointPayload) * numpts);
-  tQuadTree* nodes_store = malloc(sizeof(tQuadTree) * maxNumberOfNodes);
-
-  if (pt == NULL || pt_scratch == NULL || nodes_store == NULL) {
+  if (!allocateQuadTreeIndex(&qti, numpts)) {
     printf("memory allocation failed\n");
+    freeQuadTreeIndex(&qti);
     return 1;
   }
+
+  tQTPointPayload* pt = qti.pt;
+  tQTPointPayload* pt_scratch = qti.pt_scratch;
 
   const double W = D / 2.0;
 
@@ -96,41 +96,46 @@ int main(int argc, const char** argv)
   const double hbwx = (xmax - xmin) / 2.0;
   const double hbwy = (ymax - ymin) / 2.0;
 
-  tQuadTree rootNode;
+  tQuadTree* root = &qti.root;
 
-  rootNode.cb.x = (xmin + xmax) / 2.0;
-  rootNode.cb.y = (ymin + ymax) / 2.0;
-  rootNode.hbw = (hbwx > hbwy ? hbwx : hbwy);
-  rootNode.hbw *= (1.0 + 1.0e-10);
+  root->cb.x = (xmin + xmax) / 2.0;
+  root->cb.y = (ymin + ymax) / 2.0;
+  root->hbw = (hbwx > hbwy ? hbwx : hbwy);
+  root->hbw *= (1.0 + 1.0e-10);
 
-  printf("cx, cy     = %f, %f\n", rootNode.cb.x, rootNode.cb.y);
+  printf("cx, cy     = %f, %f\n", root->cb.x, root->cb.y);
   printf("hbwx, hbwy = %f, %f\n", hbwx, hbwy);
 
   const int maxDepth = 50;
   const int maxInLeaf = maxleaf;
   const int rootLevel = 0;
 
-  const int nno = build_quadtree(&rootNode, 
+  const int nno = build_quadtree(root, 
                                  maxInLeaf, 
                                  maxDepth, 
                                  rootLevel, 
-                                 numpts, 
-                                 pt, 
-                                 pt_scratch, 
-                                 maxNumberOfNodes, 
-                                 nodes_store);
+                                 qti.numpts, 
+                                 qti.pt, 
+                                 qti.pt_scratch, 
+                                 qti.maxnodes, 
+                                 qti.nodes_store);
 
-  const int nn_in_tree = count_quadtree_nodes(&rootNode);
-  const int n_in_tree = count_quadtree_points(&rootNode);
-  const int max_depth = count_maximum_depth(&rootNode, 0);
-  const double avg_depth = count_average_depth(&rootNode, 0.0);
+  const int nn_in_tree = count_quadtree_nodes(root);
+  const int n_in_tree = count_quadtree_points(root);
+  const int max_depth = count_maximum_depth(root, 0);
+  const double avg_depth = count_average_depth(root, 0.0);
 
   printf("nno, nn_in_tree, npts, n_in_tree = %i, %i, %i, %i\n", nno, nn_in_tree, numpts, n_in_tree);
   printf("maxdepth, <depth> = %i, %f\n", max_depth, avg_depth);
 
-  const int total_box_count = quadtree_box_query_count(&rootNode, &(rootNode.cb), rootNode.hbw);
+  const int total_box_count = quadtree_box_query_count(root, 
+                                                       &(root->cb), 
+                                                       root->hbw);
 
-  if (numpts != n_in_tree || nno + 1 != nn_in_tree || total_box_count != numpts) {
+  if (numpts != n_in_tree || 
+      nno + 1 != nn_in_tree || 
+      total_box_count != numpts)
+  {
     printf("point and/or node counts failed\n");
     test_failed = true;
     goto free_and_exit;
@@ -163,7 +168,7 @@ int main(int argc, const char** argv)
     const tQTPoint query_pt_i = {pt_scratch[i].x, pt_scratch[i].y};
     const int index_query_i = i;
 
-    quadtree_box_interact(&rootNode,
+    quadtree_box_interact(root,
                           index_query_i, 
                           &query_pt_i, 
                           query_box_halfwidth,
@@ -206,9 +211,7 @@ int main(int argc, const char** argv)
 
 free_and_exit:
 
-  free(pt);
-  free(pt_scratch);
-  free(nodes_store);
+  freeQuadTreeIndex(&qti);
 
   return (!test_failed ? 0 : -1);
 }
