@@ -30,7 +30,7 @@ target_compile_options(test_argsio PRIVATE -Wall -Wextra -Wpedantic)
 
 add_executable(test_qtree test_qtree.c)
 target_include_directories(test_qtree PUBLIC "include")
-target_compile_options(test_qtree PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_options(test_qtree PRIVATE -Wall -Wextra -Wpedantic -Wno-unused-parameter)
 
 enable_testing()
 

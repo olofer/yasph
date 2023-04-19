@@ -12,6 +12,9 @@ See "test_qtree.c" for usage and test.
 
 */
 
+// TODO: helper routine for creation and destrution of the associated memory spaces needed during usage.
+// TODO: tPoint should be renamed 
+
 typedef struct tPoint {
   double x;
   double y;
@@ -338,11 +341,40 @@ double count_average_depth(const tQuadTree* root, double ref) {
   return (dsum / nc);
 }
 
-// TODO: main routine that takes a callback that computes the interaction btw. two indices (i,j)
-// .. the quadtree is traversed so that all within-box neighbors j are handled w.r.t. to i.
-// built upon the box-query pattern: interact with all points within the specified box; 
-// excluding self (or including self).
+// Take callback function and apply it to indices j interacting with  (iq, j).
+// It is assumed that the query box centre is set to the actual point with index iq.
+// And the query box half-width should be equal to the kernel support radius.
 
-// TOOD: helper routine for creation and destrution of the associated memory spaces needed during usage.
+typedef void (*quadtree_interact_func_ptr)(int, int, void*);
+
+void quadtree_box_interact(const tQuadTree* root,
+                           int iq, 
+                           const tPoint* cq, 
+                           double hwq,
+                           quadtree_interact_func_ptr callb_ij,
+                           void* auxptr)
+{
+  if (!box_overlap_box(&(root->cb), root->hbw, cq, hwq))
+    return;
+
+  if (root->p != NULL) {
+    for (int j = 0; j < root->npts; j++) {
+      if (point_inside_box(root->p[j].x, root->p[j].y, cq, hwq)) {
+        (*callb_ij)(iq, root->p[j].index, auxptr);
+      }
+    }
+    return;
+  }
+
+  const tQuadTree* child[4] = {root->pp, root->pm, root->mm, root->mp};
+
+  for (int c = 0; c < 4; c++) {
+    if (child[c] != NULL) {
+      quadtree_box_interact(child[c], iq, cq, hwq, callb_ij, auxptr);
+    }
+  }
+
+  return;
+}
 
 #endif 

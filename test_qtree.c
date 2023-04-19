@@ -20,11 +20,10 @@ Otherwise return nonzero.
 void enumerateFunction(int i, int j, void* aux) {
   if (aux == NULL) return;
   uint32_t* histo = (uint32_t *) aux;
-  histo[i]++;
+  histo[j]++;
 }
 
-void count_all_inside(const double* x, 
-                      const double* y, 
+void count_all_inside(const tPointPayload* pt, 
                       int n,
                       uint32_t* histo,
                       double xmin,
@@ -33,8 +32,10 @@ void count_all_inside(const double* x,
                       double ymax)
 {
   for (int i = 0; i < n; i++) {
-    const bool x_inside = (x[i] >= xmin && x[i] < xmax);
-    const bool y_inside = (y[i] >= ymin && y[i] < ymax);
+    const double xi = pt[i].x;
+    const double yi = pt[i].y;
+    const bool x_inside = (xi >= xmin && xi < xmax);
+    const bool y_inside = (yi >= ymin && yi < ymax);
     if (x_inside && y_inside) {
       histo[i]++;
     }
@@ -131,46 +132,72 @@ int main(int argc, const char** argv)
     goto free_and_exit;
   }
 
-/*
-  tPoint queryp = {0.5, 0.5};
-  int query_box_count = quadtree_box_query_count(&rootNode, &queryp, 0.25);
-  THEPRINTF("[%s]: n_in_box (fixed box query) = %i\n", __func__, query_box_count);
-*/
+  // Restore original ordering of pt array into now-unused pt_scratch area
+  for (int i = 0; i < numpts; i++) {
+    pt_scratch[pt[i].index] = pt[i];
+  }
 
-/*
+  for (int i = 0; i < numpts; i++) {
+    if (pt_scratch[i].index != i) {
+      printf("og order recreation failure\n");
+      test_failed = true;
+      goto free_and_exit;
+    }
+  }
+
+  // Setup a interaction callback test (check all points that should be touched, are actually touched, and no other)
+  uint32_t* pH0 = malloc(sizeof(uint32_t) * numpts);
+  uint32_t* pH1 = malloc(sizeof(uint32_t) * numpts);
+
+  memset(pH0, 0, sizeof(uint32_t) * numpts);
+  memset(pH1, 0, sizeof(uint32_t) * numpts);
+
+  const double query_box_halfwidth = D / 10.0; // should be a argument really "d"
+
+  for (int i = 0; i < numpts; i++) {
+    const tPoint query_pt_i = {pt_scratch[i].x, pt_scratch[i].y};
+    const int index_query_i = i;
+
+    quadtree_box_interact(&rootNode,
+                          index_query_i, 
+                          &query_pt_i, 
+                          query_box_halfwidth,
+                          &enumerateFunction,
+                          (void *) pH0);
+
+    count_all_inside(pt_scratch, 
+                     numpts, 
+                     pH1, 
+                     query_pt_i.x - query_box_halfwidth, 
+                     query_pt_i.x + query_box_halfwidth,
+                     query_pt_i.y - query_box_halfwidth, 
+                     query_pt_i.y + query_box_halfwidth);
+
+    const bool is_still_equal = (memcmp(pH0, pH1, sizeof(uint32_t) * numpts) == 0);
+    if (!is_still_equal) {
+      printf("interaction failed @ i = %i\n", i);
+      test_failed = true;
+      break;
+    }
+  }
+
   if (!test_failed) {
-
-    uint32_t* pH0 = malloc(sizeof(uint32_t) * numpts);
-    uint32_t* pH1 = malloc(sizeof(uint32_t) * numpts);
-
-    memset(pH0, 0, sizeof(uint32_t) * numpts);
-    memset(pH1, 0, sizeof(uint32_t) * numpts);
-
+    uint32_t hmin = 1000000000;
+    uint32_t hmax = 0;
     for (int i = 0; i < numpts; i++) {
-      cellIterate_HashIndex2D(&hti, i, &enumerateFunction, pH0);
-      const int32_t ix = hti.key_[i].xi;
-      const int32_t iy = hti.key_[i].yi;
-      count_all_inside(pX, pY, numpts, pH1, ix * d, ix * d + d, iy * d, iy * d + d);
-      const bool is_still_equal = (memcmp(pH0, pH1, sizeof(uint32_t) * numpts) == 0);
-      if (!is_still_equal) {
+      if (pH0[i] < 1) {
+        printf("never-self interaction for i = %i\n", i);
         test_failed = true;
         break;
       }
+      if (pH0[i] < hmin) hmin = pH0[i];
+      if (pH0[i] > hmax) hmax = pH0[i];
     }
+    printf("histogram min,max = %i,%i\n", hmin, hmax);
+  }  
 
-    if (!test_failed) {
-      for (int i = 0; i < numpts; i++) {
-        if (pH0[i] < 1) {
-          test_failed = true;
-          break;
-        }
-      }
-    }
-
-    free(pH0);
-    free(pH1);
-  }
-*/
+  free(pH0);
+  free(pH1);
 
 free_and_exit:
 
