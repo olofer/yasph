@@ -13,25 +13,24 @@ See "test_qtree.c" for usage and test.
 */
 
 // TODO: helper routine for creation and destrution of the associated memory spaces needed during usage.
-// TODO: tPoint should be renamed 
 
-typedef struct tPoint {
+typedef struct tQTPoint {
   double x;
   double y;
-} tPoint;
+} tQTPoint;
 
-typedef struct tPointPayload {
+typedef struct tQTPointPayload {
   double x;
   double y;
   int index;
-} tPointPayload;
+} tQTPointPayload;
 
 typedef struct tQuadTree {
-  tPoint cb;   // box center = (cx, cy)
-  double hbw;  // half box width, box is a square always
+  tQTPoint cb;          // box center = (cx, cy)
+  double hbw;           // half box width, box is a square always
 
-  int npts;    // if leaf node: num. points in leaf, otherwise sum-total of points in children
-  tPointPayload* p;   // NULL for non-leaf nodes; otherwise actual point data storage
+  int npts;             // if leaf node: num. points in leaf, otherwise sum-total of points in children
+  tQTPointPayload* p;   // NULL for non-leaf nodes; otherwise actual point data storage
 
   struct tQuadTree* pp; // child-nodes, one per quadrant
   struct tQuadTree* pm; // NULL if empty
@@ -40,8 +39,10 @@ typedef struct tQuadTree {
 } tQuadTree;
 
 // upper borders excluded from "inside"
-bool point_inside_box(double px, double py, 
-                      const tPoint* cb, double hbw)
+bool point_inside_box(double px, 
+                      double py, 
+                      const tQTPoint* cb, 
+                      double hbw)
 {
   const double cx = cb->x;
   const double cy = cb->y;
@@ -49,8 +50,10 @@ bool point_inside_box(double px, double py,
 }
 
 // Does box1 (center c1, half-width hw1) and box2 (c2, hw2) overlap in any way?
-bool box_overlap_box(const tPoint* c1, double hw1, 
-                     const tPoint* c2, double hw2) 
+bool box_overlap_box(const tQTPoint* c1, 
+                     double hw1, 
+                     const tQTPoint* c2, 
+                     double hw2) 
 {
   const double right1 = c1->x + hw1;
   const double left1 = c1->x - hw1;
@@ -71,7 +74,9 @@ bool box_overlap_box(const tPoint* c1, double hw1,
 // 01 = 2nd quadrant (pm)
 // 10 = 4th quadrant (mp)
 // 11 = 1st quadrant (pp)
-uint8_t quadrant_index(const tPointPayload* p, const tPoint* c) {
+uint8_t quadrant_index(const tQTPointPayload* p, 
+                       const tQTPoint* c) 
+{
   uint8_t k = 0;
   if (p->x >= c->x) k |= 0x01;
   if (p->y >= c->y) k |= 0x02;
@@ -86,8 +91,8 @@ int build_quadtree(tQuadTree* root,
                    int maxDepth,
                    int level,
                    int np,
-                   tPointPayload* point, 
-                   tPointPayload* scratch,
+                   tQTPointPayload* point, 
+                   tQTPointPayload* scratch,
                    int nn, 
                    tQuadTree* node) 
 {
@@ -239,7 +244,7 @@ int build_quadtree(tQuadTree* root,
 
 // Simple box-query that just returns the total number of points found
 int quadtree_box_query_count(const tQuadTree* root, 
-                             const tPoint* cq, 
+                             const tQTPoint* cq, 
                              double hwq)
 {
   if (!box_overlap_box(&(root->cb), root->hbw, cq, hwq))
@@ -309,7 +314,9 @@ int count_quadtree_leaves(const tQuadTree* root) {
 }
 
 // Tally up maximum depth of tree.
-int count_maximum_depth(const tQuadTree* root, int ref) {
+int count_maximum_depth(const tQuadTree* root, 
+                        int ref) 
+{
   if (root->p != NULL)
     return ref;
   int d = ref;
@@ -325,7 +332,9 @@ int count_maximum_depth(const tQuadTree* root, int ref) {
 }
 
 // tally up the average depth of the tree
-double count_average_depth(const tQuadTree* root, double ref) {
+double count_average_depth(const tQuadTree* root, 
+                           double ref) 
+{
   if (root->p != NULL)
     return ref;
   const tQuadTree* child[4] = {root->pp, root->pm, root->mm, root->mp};
@@ -349,7 +358,7 @@ typedef void (*quadtree_interact_func_ptr)(int, int, void*);
 
 void quadtree_box_interact(const tQuadTree* root,
                            int iq, 
-                           const tPoint* cq, 
+                           const tQTPoint* cq, 
                            double hwq,
                            quadtree_interact_func_ptr callb_ij,
                            void* auxptr)

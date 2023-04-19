@@ -23,7 +23,7 @@ void enumerateFunction(int i, int j, void* aux) {
   histo[j]++;
 }
 
-void count_all_inside(const tPointPayload* pt, 
+void count_all_inside(const tQTPointPayload* pt, 
                       int n,
                       uint32_t* histo,
                       double xmin,
@@ -63,8 +63,8 @@ int main(int argc, const char** argv)
 
   const int maxNumberOfNodes = numpts * 4; // probably only 2 needed here
 
-  tPointPayload* pt = malloc(sizeof(tPointPayload) * numpts);
-  tPointPayload* pt_scratch = malloc(sizeof(tPointPayload) * numpts);
+  tQTPointPayload* pt = malloc(sizeof(tQTPointPayload) * numpts);
+  tQTPointPayload* pt_scratch = malloc(sizeof(tQTPointPayload) * numpts);
   tQuadTree* nodes_store = malloc(sizeof(tQuadTree) * maxNumberOfNodes);
 
   if (pt == NULL || pt_scratch == NULL || nodes_store == NULL) {
@@ -160,7 +160,7 @@ int main(int argc, const char** argv)
 
   for (int i = 0; i < numpts; i++)
   {
-    const tPoint query_pt_i = {pt_scratch[i].x, pt_scratch[i].y};
+    const tQTPoint query_pt_i = {pt_scratch[i].x, pt_scratch[i].y};
     const int index_query_i = i;
 
     quadtree_box_interact(&rootNode,
