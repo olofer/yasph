@@ -44,8 +44,8 @@ void count_all_inside(const tPointPayload* pt,
 
 int main(int argc, const char** argv)
 {
-  if (argc != 4) {
-    printf("usage: %s numpts D maxleaf\n", argv[0]);
+  if (argc != 5) {
+    printf("usage: %s numpts D qhw maxleaf\n", argv[0]);
     return 1;
   }
 
@@ -53,9 +53,10 @@ int main(int argc, const char** argv)
 
   const int numpts = atoi(argv[1]);
   const double D = atof(argv[2]);
-  const int maxleaf = atof(argv[3]);
+  const double qhw = atof(argv[3]);
+  const int maxleaf = atoi(argv[4]);
 
-  if (numpts <= 0 || D <= 0 || maxleaf <= 0) {
+  if (numpts <= 0 || D <= 0.0 || maxleaf <= 0 || qhw <= 0.0) {
     printf("invalid argument(s) given\n");
     return 1;
   } 
@@ -72,6 +73,9 @@ int main(int argc, const char** argv)
   }
 
   const double W = D / 2.0;
+
+  printf("num pts, leaf max = %i, %i\n", numpts, maxleaf);
+  printf("domain, query half-widths = %f, %f\n", W, qhw);
 
   double xmin = W;
   double xmax = -1.0 * W;
@@ -139,7 +143,7 @@ int main(int argc, const char** argv)
 
   for (int i = 0; i < numpts; i++) {
     if (pt_scratch[i].index != i) {
-      printf("og order recreation failure\n");
+      printf("original order recreation failure\n");
       test_failed = true;
       goto free_and_exit;
     }
@@ -152,9 +156,10 @@ int main(int argc, const char** argv)
   memset(pH0, 0, sizeof(uint32_t) * numpts);
   memset(pH1, 0, sizeof(uint32_t) * numpts);
 
-  const double query_box_halfwidth = D / 10.0; // should be a argument really "d"
+  const double query_box_halfwidth = qhw;
 
-  for (int i = 0; i < numpts; i++) {
+  for (int i = 0; i < numpts; i++)
+  {
     const tPoint query_pt_i = {pt_scratch[i].x, pt_scratch[i].y};
     const int index_query_i = i;
 

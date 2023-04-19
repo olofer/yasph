@@ -66,14 +66,15 @@ add_test(NAME index-5 COMMAND test_index ${NumTestPoints} 1.0 0.20)
 add_test(NAME index-6 COMMAND test_index ${NumTestPoints} 1.0 0.40)
 add_test(NAME index-7 COMMAND test_index ${NumTestPoints} 1.0 0.80)
 
-add_test(NAME qtree-1 COMMAND test_qtree ${NumTestPoints} 1.0 1)  # different numbers for "max leaf"
-add_test(NAME qtree-2 COMMAND test_qtree ${NumTestPoints} 1.0 2)
-add_test(NAME qtree-3 COMMAND test_qtree ${NumTestPoints} 1.0 3)
-add_test(NAME qtree-4 COMMAND test_qtree ${NumTestPoints} 1.0 4)
-add_test(NAME qtree-5 COMMAND test_qtree ${NumTestPoints} 1.0 5)
-add_test(NAME qtree-6 COMMAND test_qtree ${NumTestPoints} 1.0 6)
-add_test(NAME qtree-7 COMMAND test_qtree ${NumTestPoints} 1.0 7)
-add_test(NAME qtree-8 COMMAND test_qtree ${NumTestPoints} 1.0 8)
+set(QueryHalfwidth "0.05")
+add_test(NAME qtree-1 COMMAND test_qtree ${NumTestPoints} 1.0 ${QueryHalfwidth} 1)  # different numbers for "max leaf"
+add_test(NAME qtree-2 COMMAND test_qtree ${NumTestPoints} 1.0 ${QueryHalfwidth} 2)
+add_test(NAME qtree-3 COMMAND test_qtree ${NumTestPoints} 1.0 ${QueryHalfwidth} 3)
+add_test(NAME qtree-4 COMMAND test_qtree ${NumTestPoints} 1.0 ${QueryHalfwidth} 4)
+add_test(NAME qtree-5 COMMAND test_qtree ${NumTestPoints} 1.0 ${QueryHalfwidth} 5)
+add_test(NAME qtree-6 COMMAND test_qtree ${NumTestPoints} 1.0 ${QueryHalfwidth} 6)
+add_test(NAME qtree-7 COMMAND test_qtree ${NumTestPoints} 1.0 ${QueryHalfwidth} 7)
+add_test(NAME qtree-8 COMMAND test_qtree ${NumTestPoints} 1.0 ${QueryHalfwidth} 8)
 
 set(NumTestArgsList "0" "1" "2" "3" "10" "20" "50" "100" "500" "1000")
 foreach(NumTestArgs ${NumTestArgsList})
