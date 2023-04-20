@@ -12,8 +12,6 @@ See "test_qtree.c" for usage and test.
 
 */
 
-// TODO: missing "qti" version of QT build call
-
 typedef struct tQTPoint {
   double x;
   double y;
@@ -363,7 +361,7 @@ int count_maximum_depth(const tQuadTree* root,
   return d;
 }
 
-// tally up the average depth of the tree
+// Count the average depth of the tree
 double count_average_depth(const tQuadTree* root, 
                            double ref) 
 {
@@ -471,13 +469,15 @@ int rebuildQuadTreeIndex(tQuadTreeIndex* qti,
   return nno;
 }
 
-// Assumes xmin < xmax & ymin < ymax
-void initializeQuadTreeRootBox(tQuadTreeIndex* qti,
+bool initializeQuadTreeRootBox(tQuadTreeIndex* qti,
                                double xmin,
                                double xmax,
                                double ymin,
                                double ymax)
 {
+  if (xmin >= xmax || ymin >= ymax)
+    return false;
+
   const double hbwx = (xmax - xmin) / 2.0;
   const double hbwy = (ymax - ymin) / 2.0;
   const double cbx = (xmin + xmax) / 2.0;
@@ -488,6 +488,8 @@ void initializeQuadTreeRootBox(tQuadTreeIndex* qti,
   qti->root.cb.y = cby;
   qti->root.hbw = (hbwx > hbwy ? hbwx : hbwy);
   qti->root.hbw *= (1.0 + eps_mult);
+
+  return true;
 }
 
 #endif 

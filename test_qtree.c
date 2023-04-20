@@ -93,7 +93,11 @@ int main(int argc, const char** argv)
     ymax = (pt[i].y > ymax ? pt[i].y : ymax);
   }
 
-  initializeQuadTreeRootBox(&qti, xmin, xmax, ymin, ymax);
+  if (!initializeQuadTreeRootBox(&qti, xmin, xmax, ymin, ymax)) {
+    printf("root box bounds init failure\n");
+    test_failed = true;
+    goto free_and_exit;
+  }
 
   const double hbwx = (xmax - xmin) / 2.0;
   const double hbwy = (ymax - ymin) / 2.0;
