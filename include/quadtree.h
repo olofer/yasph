@@ -420,4 +420,23 @@ void freeQuadTreeIndex(tQuadTreeIndex* qti) {
   memset(qti, 0, sizeof(tQuadTreeIndex));
 }
 
+// qti->pt assumed to be preloaded with point data
+// qti->root assumed to be preloaded with initial & correct bounding box/square
+int rebuildQuadTreeIndex(tQuadTreeIndex* qti,
+                         int maxInLeaf,
+                         int maxDepth)
+{
+  const int rootLevel = 0;
+  const int nno = build_quadtree(&qti->root, 
+                                 maxInLeaf, 
+                                 maxDepth, 
+                                 rootLevel, 
+                                 qti->numpts, 
+                                 qti->pt, 
+                                 qti->pt_scratch, 
+                                 qti->maxnodes, 
+                                 qti->nodes_store);
+  return nno;
+}
+
 #endif 

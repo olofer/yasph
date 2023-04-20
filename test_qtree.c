@@ -107,18 +107,9 @@ int main(int argc, const char** argv)
   printf("hbwx, hbwy = %f, %f\n", hbwx, hbwy);
 
   const int maxDepth = 50;
-  const int maxInLeaf = maxleaf;
-  const int rootLevel = 0;
-
-  const int nno = build_quadtree(root, 
-                                 maxInLeaf, 
-                                 maxDepth, 
-                                 rootLevel, 
-                                 qti.numpts, 
-                                 qti.pt, 
-                                 qti.pt_scratch, 
-                                 qti.maxnodes, 
-                                 qti.nodes_store);
+  const int nno = rebuildQuadTreeIndex(&qti, 
+                                       maxleaf, 
+                                       maxDepth);
 
   const int nn_in_tree = count_quadtree_nodes(root);
   const int n_in_tree = count_quadtree_points(root);
