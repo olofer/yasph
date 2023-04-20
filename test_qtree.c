@@ -113,10 +113,11 @@ int main(int argc, const char** argv)
   const int max_depth = count_maximum_depth(root, 0);
   const double avg_depth = count_average_depth(root, 0.0);
   const int max_in_leaf = count_maximum_in_leaf(root);
+  const double avg_in_leaf = count_average_in_leaf(root);
 
   printf("nno, nn_in_tree, npts, n_in_tree = %i, %i, %i, %i\n", nno, nn_in_tree, numpts, n_in_tree);
   printf("maxdepth, <depth> = %i, %f\n", max_depth, avg_depth);
-  printf("max_in_leaf = %i\n", max_in_leaf);
+  printf("max_in_leaf, <leaf> = %i, %f\n", max_in_leaf, avg_in_leaf);
 
   const int total_box_count = quadtree_box_query_count(root, 
                                                        &(root->cb), 

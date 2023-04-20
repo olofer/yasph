@@ -329,6 +329,22 @@ int count_maximum_in_leaf(const tQuadTree* root) {
   return leafmax;
 }
 
+double count_average_in_leaf(const tQuadTree* root) {
+  if (root->p != NULL)
+    return (double) root->npts;
+  const tQuadTree* child[4] = {root->pp, root->pm, root->mm, root->mp};
+  double leafsum = 0.0;
+  int nc = 0;
+  for (int c = 0; c < 4; c++) {
+    if (child[c] == NULL)
+      continue;
+    const double avg_in_c = count_average_in_leaf(child[c]);
+    leafsum += avg_in_c;
+    nc++;
+  }
+  return leafsum / nc;
+}
+
 // Tally up maximum depth of tree.
 int count_maximum_depth(const tQuadTree* root, 
                         int ref) 
@@ -467,7 +483,7 @@ void initializeQuadTreeRootBox(tQuadTreeIndex* qti,
   const double cbx = (xmin + xmax) / 2.0;
   const double cby = (ymin + ymax) / 2.0;
   const double eps_mult = 1.0e-10;
-  
+
   qti->root.cb.x = cbx;
   qti->root.cb.y = cby;
   qti->root.hbw = (hbwx > hbwy ? hbwx : hbwy);
