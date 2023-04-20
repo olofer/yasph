@@ -93,18 +93,15 @@ int main(int argc, const char** argv)
     ymax = (pt[i].y > ymax ? pt[i].y : ymax);
   }
 
+  initializeQuadTreeRootBox(&qti, xmin, xmax, ymin, ymax);
+
   const double hbwx = (xmax - xmin) / 2.0;
   const double hbwy = (ymax - ymin) / 2.0;
 
   tQuadTree* root = &qti.root;
 
-  root->cb.x = (xmin + xmax) / 2.0;
-  root->cb.y = (ymin + ymax) / 2.0;
-  root->hbw = (hbwx > hbwy ? hbwx : hbwy);
-  root->hbw *= (1.0 + 1.0e-10);
-
-  printf("cx, cy     = %f, %f\n", root->cb.x, root->cb.y);
-  printf("hbwx, hbwy = %f, %f\n", hbwx, hbwy);
+  printf("cx, cy = %f, %f\n", root->cb.x, root->cb.y);
+  printf("hbwx, hbwy, hbw = %f, %f, %f\n", hbwx, hbwy, root->hbw);
 
   const int maxDepth = 50;
   const int nno = rebuildQuadTreeIndex(&qti, 
@@ -115,9 +112,11 @@ int main(int argc, const char** argv)
   const int n_in_tree = count_quadtree_points(root);
   const int max_depth = count_maximum_depth(root, 0);
   const double avg_depth = count_average_depth(root, 0.0);
+  const int max_in_leaf = count_maximum_in_leaf(root);
 
   printf("nno, nn_in_tree, npts, n_in_tree = %i, %i, %i, %i\n", nno, nn_in_tree, numpts, n_in_tree);
   printf("maxdepth, <depth> = %i, %f\n", max_depth, avg_depth);
+  printf("max_in_leaf = %i\n", max_in_leaf);
 
   const int total_box_count = quadtree_box_query_count(root, 
                                                        &(root->cb), 

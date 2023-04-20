@@ -313,6 +313,22 @@ int count_quadtree_leaves(const tQuadTree* root) {
   return n;
 }
 
+// Maximum size of any leaf in tree
+int count_maximum_in_leaf(const tQuadTree* root) {
+  if (root->p != NULL)
+    return root->npts;
+  const tQuadTree* child[4] = {root->pp, root->pm, root->mm, root->mp};
+  int leafmax = 0;
+  for (int c = 0; c < 4; c++) {
+    if (child[c] == NULL)
+      continue;
+    const int max_in_c = count_maximum_in_leaf(child[c]);
+    if (max_in_c > leafmax)
+      leafmax = max_in_c;
+  }
+  return leafmax;
+}
+
 // Tally up maximum depth of tree.
 int count_maximum_depth(const tQuadTree* root, 
                         int ref) 
@@ -437,6 +453,25 @@ int rebuildQuadTreeIndex(tQuadTreeIndex* qti,
                                  qti->maxnodes, 
                                  qti->nodes_store);
   return nno;
+}
+
+// Assumes xmin < xmax & ymin < ymax
+void initializeQuadTreeRootBox(tQuadTreeIndex* qti,
+                               double xmin,
+                               double xmax,
+                               double ymin,
+                               double ymax)
+{
+  const double hbwx = (xmax - xmin) / 2.0;
+  const double hbwy = (ymax - ymin) / 2.0;
+  const double cbx = (xmin + xmax) / 2.0;
+  const double cby = (ymin + ymax) / 2.0;
+  const double eps_mult = 1.0e-10;
+  
+  qti->root.cb.x = cbx;
+  qti->root.cb.y = cby;
+  qti->root.hbw = (hbwx > hbwy ? hbwx : hbwy);
+  qti->root.hbw *= (1.0 + eps_mult);
 }
 
 #endif 
