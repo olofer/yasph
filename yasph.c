@@ -1299,12 +1299,12 @@ bool offload_particlefile(const char* outputfilename,
 
     textio_write_double_matrix(outputfilename,
                                M,
-												  		 num_particles,
-															 6,
-															 NULL,
-															 sep_char,
-															 head_comment,
-															 foot_comment);
+                               num_particles,
+                               6,
+                               NULL,
+                               sep_char,
+                               head_comment,
+                               foot_comment);
  
     free(M);
   }
