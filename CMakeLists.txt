@@ -111,3 +111,4 @@ add_test(NAME barrier-gen-script COMMAND python3 ${PROJECT_SOURCE_DIR}/scripts/y
 add_test(NAME smoke-barrier-nosteps COMMAND yasph state2.yasph params2.yasph dt=1.0e-6 steps=0) 
 
 add_test(NAME sim-t2-logged-quad COMMAND yasph state.yasph params.yasph index-name=quad dt=1.0e-6 threads=2 steps=${SimTestSteps} trace-steps=10 trace-file=simtrace-t2-quad.yasph)
+add_test(NAME quad-check-1 COMMAND python3 ${PROJECT_SOURCE_DIR}/scripts/yasph-cmp-traces.py --trace-1 simtrace-t2.yasph --trace-2 simtrace-t2-quad.yasph)
