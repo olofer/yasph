@@ -791,6 +791,9 @@ int main(int argc, const char** argv)
 
   if (use_quadtree) {
     index_is_up = allocateQuadTreeIndex(&qti, num_particles);
+    if (index_is_up && SimParameters.verbosity > 0) {
+      printf("using quad-tree index\n");
+    }
   } else {
     index_is_up = (allocate_HashIndex2D(&hti, 
                                         num_particles, 

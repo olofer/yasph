@@ -109,3 +109,5 @@ add_test(NAME cmp-t1-t3 COMMAND cmp snapshots-t1.yasph snapshots-t3.yasph)
 
 add_test(NAME barrier-gen-script COMMAND python3 ${PROJECT_SOURCE_DIR}/scripts/yasph-init-box.py --n 1999 --particle-file state2.yasph --parameter-file params2.yasph --barrier-radius 2.0) 
 add_test(NAME smoke-barrier-nosteps COMMAND yasph state2.yasph params2.yasph dt=1.0e-6 steps=0) 
+
+add_test(NAME sim-t2-logged-quad COMMAND yasph state.yasph params.yasph index-name=quad dt=1.0e-6 threads=2 steps=${SimTestSteps} trace-steps=10 trace-file=simtrace-t2-quad.yasph)
