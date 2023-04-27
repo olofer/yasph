@@ -23,6 +23,7 @@
 #include "hashindex2d.h"
 #include "autotune.h"
 #include "clkutil.h"
+#include "quadtree.h"
 
 typedef struct tParticle {
   double m;
@@ -77,6 +78,11 @@ enum enum_viscosity {
   viscosity_monaghan = 1
 };
 
+enum enum_index {
+  index_hash = 1,
+  index_quad = 2
+};
+
 typedef struct tSimParameters {
   double dt;
   int steps;
@@ -99,6 +105,8 @@ typedef struct tSimParameters {
   double epsbn;  // normal direction barrier loss
   char stepper_name[16];
   int stepper_type;
+  char index_name[16];
+  int index_type;
   char kernel_name[16];
   int trace_steps;
   char trace_file[MAX_FILENAME_LENGTH];
@@ -367,6 +375,40 @@ bool refresh_hash_index(tHashIndex2D* hti,
   }
   create_HashIndex2D(hti, nump); 
   return (testIndex ? test_HashIndex2D(hti) : true);
+}
+
+bool refresh_quad_index(tQuadTreeIndex* qti,
+                        int nump,
+                        const tParticle* sp,
+                        int maxInLeaf,
+                        int maxDepth)
+{
+  double xmin = sp[0].x;
+  double xmax = sp[0].x;
+  double ymin = sp[0].y;
+  double ymax = sp[0].y;
+
+  tQTPointPayload* pt = qti->pt;
+
+  for (int i = 0; i < nump; i++) {
+    const double xi = sp[i].x;
+    const double yi = sp[i].y;
+
+    pt[i].x = xi;
+    pt[i].y = yi;
+    pt[i].index = i;
+
+    if (xi < xmin) xmin = xi;
+    if (xi > xmax) xmax = xi;
+    if (yi < ymin) ymin = yi;
+    if (yi > ymax) ymax = yi;
+  }
+
+  if (!initializeQuadTreeRootBox(qti, xmin, xmax, ymin, ymax))
+    return false;
+
+  rebuildQuadTreeIndex(qti, maxInLeaf, maxDepth);
+  return true;
 }
 
 void refresh_rho_vdot_and_udot(const tHashIndex2D* hti,
@@ -892,6 +934,7 @@ bool setup_parameters(tSimParameters* P,
   P->threads = 0;
   P->verbosity = 1;
   strcat(P->stepper_name, "gpusph");
+  strcat(P->index_name, "hash");
   strcat(P->kernel_name, "quintic");
   P->kernel_func = NULL;
   P->kernel_auto_type = 1;
@@ -949,6 +992,12 @@ bool setup_parameters(tSimParameters* P,
   P->stepper_type = (strcmp(P->stepper_name, "heun") == 0 ? stepper_heun : stepper_gpusph);
 
   if (P->stepper_type != stepper_gpusph && P->stepper_type != stepper_heun)
+    return false;
+
+  argsio_get_value(A, "index-name", P->index_name);
+  P->index_type = (strcmp(P->index_name, "quad") == 0 ? index_quad : index_hash);
+
+  if (P->index_type != index_quad && P->index_type != index_hash)
     return false;
 
   argsio_get_value(A, "kernel-name", P->kernel_name);
@@ -1148,6 +1197,9 @@ bool serialize_parameters(const tSimParameters* P,
   argsio_add_kv(&A, buffer);
 
   sprintf(buffer, "stepper-name=%s", P->stepper_name);
+  argsio_add_kv(&A, buffer);
+
+  sprintf(buffer, "index-name=%s", P->index_name);
   argsio_add_kv(&A, buffer);
 
   sprintf(buffer, "gamma=%.16e", P->gamma);
