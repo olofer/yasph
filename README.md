@@ -1,5 +1,5 @@
 # yasph
-Plain `C` smoothed particle hydrodynamics in 2D using basic `OpenMP`. For educational purposes. Employs hash-based nearest-neighbour indexing.
+Plain `C` smoothed particle hydrodynamics in 2D using basic `OpenMP`. For educational purposes. Employs either hash-based nearest-neighbour indexing or quad tree indexing (default is hash-based).
 
 ## Compile & test
 Standard method:
