@@ -414,6 +414,7 @@ bool refresh_quad_index(tQuadTreeIndex* qti,
 }
 
 void refresh_rho_vdot_and_udot(const tHashIndex2D* hti,
+                               const tQuadTreeIndex* qti,
                                int nump,
                                tParticle* sp,
                                tDotState* copy)
@@ -421,10 +422,18 @@ void refresh_rho_vdot_and_udot(const tHashIndex2D* hti,
   const double gamma_minus_one = SimParameters.gamma - 1.0;
   const double sqrt_g_gm1 = sqrt(SimParameters.gamma * gamma_minus_one);
 
+  const bool use_qtree = (qti != NULL);
+  const double support_radius = SimParameters.kernel_h * SimParameters.kernel_width; // use as query half box width
+
   #pragma omp parallel for
   for (int i = 0; i < nump; i++) {
     sp[i].rho = 0.0;
-    singleInteract_HashIndex2D(hti, i, &density_summation_callback, sp);
+    if (use_qtree) {
+      const tQTPoint queryi = {sp[i].x, sp[i].y};
+      quadtree_box_interact(&(qti->root), i, &queryi, support_radius, &density_summation_callback, sp);
+    } else {
+      singleInteract_HashIndex2D(hti, i, &density_summation_callback, sp);
+    }
     sp[i].p = gamma_minus_one * sp[i].u * sp[i].rho;
     if (SimParameters.viscosity == viscosity_off) sp[i].c = 0.0;
       else sp[i].c = sqrt_g_gm1 * sqrt(sp[i].u);  // equals sqrt(gamma*P/rho) = speed of sound
@@ -439,7 +448,12 @@ void refresh_rho_vdot_and_udot(const tHashIndex2D* hti,
     sp[i].vydot = 0.0;
     sp[i].udot = 0.0;
     sp[i].mumax = 0.0;
-    singleInteract_HashIndex2D(hti, i, &dot_summation_callback, sp);
+    if (use_qtree) {
+      const tQTPoint queryi = {sp[i].x, sp[i].y};
+      quadtree_box_interact(&(qti->root), i, &queryi, support_radius, &dot_summation_callback, sp);
+    } else {
+      singleInteract_HashIndex2D(hti, i, &dot_summation_callback, sp);
+    }
     sp[i].vxdot += gx;
     sp[i].vydot += gy;
   } 
@@ -831,15 +845,13 @@ int main(int argc, const char** argv)
         frame_counter = SimParameters.frame_steps;
       }
 
-      refresh_hash_index(&hti,
-                         num_particles, 
-                         ptr_particle,
-                         support_radius, 
-                         false);
+      if (use_quadtree) refresh_quad_index(&qti, num_particles, ptr_particle, SimParameters.max_leaf, SimParameters.max_depth);
+        else refresh_hash_index(&hti, num_particles, ptr_particle, support_radius, false);
 
       clkutil_stamp(dotcalc_tic);
 
       refresh_rho_vdot_and_udot(&hti, 
+                                use_quadtree ? &qti : NULL,
                                 num_particles,
                                 ptr_particle, 
                                 ptr_dotstate);
@@ -866,15 +878,13 @@ int main(int argc, const char** argv)
                        num_particles,
                        ptr_particle);
       
-      refresh_hash_index(&hti,
-                         num_particles, 
-                         ptr_particle,
-                         support_radius, 
-                         false);
+      if (use_quadtree) refresh_quad_index(&qti, num_particles, ptr_particle, SimParameters.max_leaf, SimParameters.max_depth);
+        else refresh_hash_index(&hti, num_particles, ptr_particle, support_radius, false);
 
       clkutil_stamp(dotcalc_tic);
 
       refresh_rho_vdot_and_udot(&hti,
+                                use_quadtree ? &qti : NULL,
                                 num_particles, 
                                 ptr_particle, 
                                 NULL);
