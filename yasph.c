@@ -980,7 +980,7 @@ bool setup_parameters(tSimParameters* P,
   P->frame_steps = 100;
   P->gx = 0.0;
   P->gy = 0.0;
-  P->max_leaf = 4;
+  P->max_leaf = 8;
   P->max_depth = 50;
 
   if (!argsio_all_unique(A)) {
@@ -1028,6 +1028,14 @@ bool setup_parameters(tSimParameters* P,
 
   if (P->index_type != index_quad && P->index_type != index_hash)
     return false;
+
+  if (argsio_get_int(A, "max-leaf", &(P->max_leaf))) {
+    if (P->max_leaf <= 0) return false;
+  }
+
+  if (argsio_get_int(A, "max-depth", &(P->max_depth))) {
+    if (P->max_depth <= 0) return false;
+  }
 
   argsio_get_value(A, "kernel-name", P->kernel_name);
   for (int i = 0; i < NUM_AVAILABLE_KERNELS; i++) {
@@ -1230,6 +1238,14 @@ bool serialize_parameters(const tSimParameters* P,
 
   sprintf(buffer, "index-name=%s", P->index_name);
   argsio_add_kv(&A, buffer);
+
+  if (P->index_type == index_quad) {
+    sprintf(buffer, "max-leaf=%i", P->max_leaf);
+    argsio_add_kv(&A, buffer);
+    
+    sprintf(buffer, "max-depth=%i", P->max_depth);
+    argsio_add_kv(&A, buffer);
+  }
 
   sprintf(buffer, "gamma=%.16e", P->gamma);
   argsio_add_kv(&A, buffer);
