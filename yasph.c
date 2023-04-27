@@ -107,6 +107,8 @@ typedef struct tSimParameters {
   int stepper_type;
   char index_name[16];
   int index_type;
+  int max_leaf;  // quadtree index parameter
+  int max_depth; // ..
   char kernel_name[16];
   int trace_steps;
   char trace_file[MAX_FILENAME_LENGTH];
@@ -768,9 +770,18 @@ int main(int argc, const char** argv)
   }
 
   tHashIndex2D hti;
-  const bool index_is_up = (allocate_HashIndex2D(&hti, 
-                                                 num_particles, 
-                                                 SimParameters.hash_load_factor) == 0);
+  tQuadTreeIndex qti;
+
+  const bool use_quadtree = (SimParameters.index_type == index_quad);
+  bool index_is_up = false;
+
+  if (use_quadtree) {
+    index_is_up = allocateQuadTreeIndex(&qti, num_particles);
+  } else {
+    index_is_up = (allocate_HashIndex2D(&hti, 
+                                        num_particles, 
+                                        SimParameters.hash_load_factor) == 0);
+  }
 
   if (has_valid_parameters && 
       particles_are_loaded && 
@@ -910,7 +921,10 @@ int main(int argc, const char** argv)
       printf("warning: timestep criteria violations in %i (out of %i steps)\n", num_dt_violations, SimParameters.steps);
   }
 
-  deallocate_HashIndex2D(&hti);
+  if (use_quadtree)
+    freeQuadTreeIndex(&qti);
+  else
+    deallocate_HashIndex2D(&hti);
 
   offload_particlefile((strlen(SimParameters.final_file) == 0 ? NULL : SimParameters.final_file), 
                        num_particles,
@@ -953,6 +967,8 @@ bool setup_parameters(tSimParameters* P,
   P->frame_steps = 100;
   P->gx = 0.0;
   P->gy = 0.0;
+  P->max_leaf = 4;
+  P->max_depth = 50;
 
   if (!argsio_all_unique(A)) {
     printf("error: at least one argument name is specified multiple times\n");
